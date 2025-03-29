@@ -1,6 +1,8 @@
-[package]
-name = "fastsync"
-version = "0.1.0"
-edition = "2021"
+[workspace]
+resolver = "1"
 
-[dependencies]
+members = [
+    "server",
+    "client",
+    "common"
+]
