@@ -4,3 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+anyhow = "1.0.97"
+quinn = "0.11.7"
+rustls = { version = "0.23.25", features = ["aws-lc-rs"] }
+tokio = { version = "1.44.1", features = ["io-std", "io-util", "macros", "rt-multi-thread"] }
