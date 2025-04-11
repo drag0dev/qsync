@@ -9,5 +9,5 @@ use server::run;
 
 fn main() {
     let cmd = Command::parse();
-    run().expect("running quic endpoint");
+    run(cmd.port).expect("running quic endpoint");
 }

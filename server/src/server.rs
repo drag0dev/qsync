@@ -1,7 +1,5 @@
 use std::{
-    error::Error,
-    path::Path,
-    sync::Arc
+    error::Error, net::{IpAddr, SocketAddr}, path::Path, str::FromStr, sync::Arc
 };
 use crate::helpers::{generate_dummy_crt, CERT_PATH, KEY_PATH};
 use anyhow::{Context, Result};
@@ -18,15 +16,16 @@ use rustls_pki_types::{
 
 
 #[tokio::main]
-pub async fn run() -> Result<()> {
+pub async fn run(port: u16) -> Result<()> {
     rustls::crypto::aws_lc_rs::default_provider().install_default().expect("installing aws_ls_rs");
     generate_dummy_crt().expect("");
+    let addr = SocketAddr::new(IpAddr::from_str("127.0.0.1").unwrap(), port);
     let server_config = get_server_config().expect("");
-    let server = Endpoint::server(server_config, "127.0.0.1:4433".parse().unwrap())
+    let server = Endpoint::server(server_config, addr)
         .context("starting server")
         .expect("");
 
-    println!("Running on port 4433");
+    println!("Running on port {port}");
     while let Some(conn) = server.accept().await {
         tokio::spawn(async move {
             match handle_connection(conn).await {
