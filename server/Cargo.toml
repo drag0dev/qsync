@@ -4,4 +4,10 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+anyhow = "1.0.97"
 clap = { version = "4.5.34", features = ["derive"] }
+quinn = "0.11.7"
+rcgen = "0.13.2"
+rustls = { version = "0.23.25", features = ["aws-lc-rs"] }
+rustls-pki-types = "1.11.0"
+tokio = { version = "1.44.1", features = ["macros", "rt-multi-thread"] }
