@@ -1,3 +1,2 @@
-mod message_type;
-
-pub use message_type::MessageType;
+pub mod message_type;
+pub mod message_header;
