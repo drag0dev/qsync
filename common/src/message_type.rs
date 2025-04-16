@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub enum MessageType {
-    /// Client sends the dir/file information (paths, checksums)
+    /// Client sends the dir/file path
     SyncRequest,
 
     /// Server responds to SyncRequest with its own dir/file information (paths, checksums)
