@@ -1,4 +1,4 @@
-use super::file_meta::FileMeta;
+use super::super::file_meta::FileMeta;
 use serde::{Serialize, Deserialize};
 use anyhow::{Result, Context};
 
