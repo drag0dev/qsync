@@ -6,6 +6,7 @@ mod block_request_message;
 mod block_data_message;
 mod serializable_message;
 mod message_framing;
+mod error_message;
 
 pub use message_type::MessageType;
 pub use message_header::MessageHeader;

@@ -14,6 +14,9 @@ pub enum MessageType {
     /// Server responds to BlockRequest with block index, path, and the block data
     BlockData,
 
+    /// Server responds to BlockRequest with block index, path, and the block data
+    Error,
+
     /// Finalizes the transfer
     Complete
 }
