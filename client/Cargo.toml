@@ -9,3 +9,4 @@ clap = { version = "4.5.36", features = ["derive"] }
 quinn = "0.11.7"
 rustls = { version = "0.23.25", features = ["aws-lc-rs"] }
 tokio = { version = "1.44.1", features = ["io-std", "io-util", "macros", "rt-multi-thread"] }
+common = { path = "../common"}

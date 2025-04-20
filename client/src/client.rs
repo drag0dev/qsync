@@ -1,54 +1,45 @@
-use std::sync::Arc;
-use std::net::SocketAddr;
-use crate::skip_cert::SkipServerVerification;
-use anyhow::{Result, Context};
-use quinn::crypto::rustls::QuicClientConfig;
-use quinn::Endpoint;
+use common::message::{
+    message_serialize_and_frame, ChecksumsResponseMessage, ErrorMessage,
+    MessageHeader, MessageType, SyncRequestMessage, HEADER_LEN
+};
+use anyhow::{anyhow, Context, Result};
+use quinn::Connection;
 
-#[tokio::main]
-pub async fn send_test_message() -> Result<()> {
-    rustls::crypto::aws_lc_rs::default_provider().install_default().expect("installing aws_ls_rs");
-    let client_config = configure_client()
-        .context("configuring client")?;
-
-    let mut client = Endpoint::client("0.0.0.0:0".parse()?)?;
-    client.set_default_client_config(client_config);
-
-    let server_addr = "127.0.0.1:4433".parse::<SocketAddr>()
-        .context("parsing server address")?;
-
-    let connection = client.connect(server_addr, "localhost")
-        .context("establishing connecting to server")?
-        .await
-        .context("connecting to server")?;
-
-    println!("Connected to server: {:?}", connection.remote_address());
-
+pub async fn send_sync_request(connection: &Connection, path: &str) -> Result<Option<ChecksumsResponseMessage>> {
     let (mut send, mut recv) = connection.open_bi().await?;
 
-    send.write_all(b"Hello from QUIC client!").await.expect("writing");
+    let msg = SyncRequestMessage::new(path.into());
+    let msg_ser = message_serialize_and_frame(MessageType::SyncRequest, &msg)?;
+
+    send.write_all(&msg_ser).await.expect("writing sync request message");
     send.finish().context("closing tx")?;
 
-    let buff = recv.read_to_end(1024).await?;
-    println!("Received from server: {}", String::from_utf8_lossy(&buff));
+    let mut header_buff = [0u8; HEADER_LEN];
+    recv.read_exact(&mut header_buff)
+        .await
+        .context("reading header")?;
+
+
+    let header = MessageHeader::deserialize(&header_buff)?;
+
+    let msg_ser = recv.read_to_end(header.msg_len as usize)
+        .await
+        .context("reading checksum message")?;
 
     connection.close(0u32.into(), b"Done");
 
-    println!("Connection closed");
+    match header.msg_type {
+        MessageType::Error => {
+            let msg = ErrorMessage::deserialize(&msg_ser)?;
+            println!("Error sending sync request: {}", msg.message);
+            Ok(None)
+        }
+        MessageType::ChecksumsResponse => {
+            let msg = ChecksumsResponseMessage::deserialize(&msg_ser)?;
+            println!("{:?}", msg);
+            Ok(Some(msg))
+        }
+        _ => Err(anyhow!("Unexpected response from server, got: {}", header.msg_type)),
+    }
 
-    Ok(())
-}
-
-fn configure_client() -> Result<quinn::ClientConfig> {
-    let crypto = rustls::ClientConfig::builder()
-        .dangerous()
-        .with_custom_certificate_verifier(SkipServerVerification::new())
-        .with_no_client_auth();
-
-    let crypto = QuicClientConfig::try_from(crypto)
-        .context("creating quic config")?;
-
-    let client_config = quinn::ClientConfig::new(Arc::new(crypto));
-
-    Ok(client_config)
 }

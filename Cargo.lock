@@ -302,6 +302,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
+ "common",
  "quinn",
  "rustls",
  "tokio",
@@ -1000,6 +1001,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
+ "common",
  "quinn",
  "rcgen",
  "rustls",
