@@ -1,3 +1,4 @@
+use std::fmt::{self, Display, Formatter};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
@@ -19,4 +20,17 @@ pub enum MessageType {
 
     /// Finalizes the transfer
     Complete
+}
+
+impl Display for MessageType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::SyncRequest => write!(f, "Sync Request"),
+            Self::ChecksumsResponse => write!(f, "Checksums Response"),
+            Self::BlockRequest => write!(f, "Block Request"),
+            Self::BlockData => write!(f, "Block Data"),
+            Self::Error => write!(f, "Error"),
+            Self::Complete => write!(f, "Complete"),
+        }
+    }
 }
