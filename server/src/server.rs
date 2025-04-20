@@ -1,8 +1,16 @@
 use std::{
-    error::Error, net::{IpAddr, SocketAddr}, path::Path, str::FromStr, sync::Arc
+    net::{IpAddr, SocketAddr},
+    path::Path, str::FromStr, sync::Arc
 };
-use crate::helpers::{generate_dummy_crt, CERT_PATH, KEY_PATH};
+use crate::{
+    helpers::{generate_dummy_crt, CERT_PATH, KEY_PATH},
+    handlers::handle_sync_request,
+};
 use anyhow::{Context, Result};
+use common::{
+    message::{MessageHeader, MessageType, HEADER_LEN},
+    helpers::unroll_anyhow_result,
+};
 use quinn::{
     crypto::rustls::QuicServerConfig,
     Endpoint,
@@ -13,7 +21,6 @@ use rustls_pki_types::{
     CertificateDer,
     PrivatePkcs8KeyDer
 };
-
 
 #[tokio::main]
 pub async fn run(port: u16) -> Result<()> {
@@ -30,7 +37,7 @@ pub async fn run(port: u16) -> Result<()> {
         tokio::spawn(async move {
             match handle_connection(conn).await {
                 Ok(_) => println!("Connection handled successfully"),
-                Err(e) => eprintln!("Connection error: {}", e),
+                Err(e) => println!("{}", unroll_anyhow_result(e)),
             }
         });
     }
@@ -38,15 +45,22 @@ pub async fn run(port: u16) -> Result<()> {
     Ok(())
 }
 
-async fn handle_connection(connecting: quinn::Incoming) -> Result<(), Box<dyn Error>> {
+async fn handle_connection(connecting: quinn::Incoming) -> Result<()> {
     let connection = connecting.await?;
     println!("Connection established from: {}", connection.remote_address());
 
-    while let Ok((mut send, mut recv)) = connection.accept_bi().await {
-        let buff = recv.read_to_end(1024).await.expect("reading response");
-        println!("Received from client: {}", String::from_utf8_lossy(&buff));
-        send.write_all(b"Hello from QUIC server!").await?;
-        send.finish().context("closing tx")?;
+    while let Ok((send, mut recv)) = connection.accept_bi().await {
+        let mut header_buff = [0u8; HEADER_LEN];
+        recv.read_exact(&mut header_buff)
+            .await
+            .context("reading header")?;
+        let header = MessageHeader::deserialize(&header_buff)?;
+
+        match header.msg_type {
+            MessageType::SyncRequest => handle_sync_request(send, recv, &header),
+            MessageType::BlockRequest => todo!(),
+            _ => todo!("return error")
+        }.await?;
     }
 
     Ok(())
