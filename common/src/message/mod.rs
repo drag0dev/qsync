@@ -15,5 +15,6 @@ pub use sync_requst_message::SyncRequestMessage;
 pub use checksums_response_message::ChecksumsResponseMessage;
 pub use block_request_message::BlockRequestMessage;
 pub use block_data_message::BlockDataMessage;
+pub use error_message::ErrorMessage;
 pub use serializable_message::SerializableMessage;
 pub use message_framing::message_serialize_and_frame;

@@ -1,5 +1,5 @@
 use super::{
-    super::file_meta::FileMeta,
+    super::file::FileMeta,
     SerializableMessage
 };
 use serde::{Serialize, Deserialize};
@@ -15,7 +15,7 @@ impl ChecksumsResponseMessage {
         ChecksumsResponseMessage { checksums }
     }
 
-    pub fn deseralize(msg: &[u8]) -> Result<Self> {
+    pub fn deserialize(msg: &[u8]) -> Result<Self> {
         Ok(bincode::deserialize(&msg).context("deserializing checksums response")?)
     }
 }
