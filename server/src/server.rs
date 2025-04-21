@@ -3,8 +3,7 @@ use std::{
     path::Path, str::FromStr, sync::Arc
 };
 use crate::{
-    helpers::{generate_dummy_crt, CERT_PATH, KEY_PATH},
-    handlers::handle_sync_request,
+    handlers::{handle_block_request, handle_sync_request}, helpers::{generate_dummy_crt, CERT_PATH, KEY_PATH}
 };
 use anyhow::{Context, Result};
 use common::{
@@ -57,10 +56,10 @@ async fn handle_connection(connecting: quinn::Incoming) -> Result<()> {
         let header = MessageHeader::deserialize(&header_buff)?;
 
         match header.msg_type {
-            MessageType::SyncRequest => handle_sync_request(send, recv, &header),
-            MessageType::BlockRequest => todo!(),
+            MessageType::SyncRequest => handle_sync_request(send, recv, &header).await,
+            MessageType::BlockRequest => handle_block_request(send, recv, &header).await,
             _ => todo!("return error")
-        }.await?;
+        }?;
     }
 
     Ok(())
