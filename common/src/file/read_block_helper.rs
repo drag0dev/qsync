@@ -15,9 +15,10 @@ pub async fn read_block(path: &str, block_idx: u64) -> Result<Vec<u8>> {
         .await
         .context("seeking file")?;
 
-    let _ = file.read(&mut buff)
+    let n = file.read(&mut buff)
         .await
         .context("reading block")?;
+    buff.truncate(n);
 
     Ok(buff)
 }
