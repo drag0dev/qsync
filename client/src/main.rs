@@ -9,7 +9,7 @@ use common::helpers::unroll_anyhow_result;
 mod skip_cert;
 mod client;
 mod command;
-use client::send_sync_request;
+use client::{send_block_request, send_sync_request};
 use command::Command;
 use skip_cert::SkipServerVerification;
 
@@ -30,8 +30,28 @@ async fn main() -> Result<()> {
 
     println!("Connected to server: {:?}", connection.remote_address());
 
-    let res = send_sync_request(&connection, &cmd.path).await.context("sending sync request message");
-    if let Err(e) = res { println!("{}", unroll_anyhow_result(e)); }
+    let checksums = send_sync_request(&connection, &cmd.path).await.context("sending sync request message");
+    if let Err(e) = checksums { println!("{}", unroll_anyhow_result(e)); return Ok(());}
+
+    let checksums = checksums.unwrap();
+    if checksums.is_none() { return Ok(()); }
+    let checksums = checksums.unwrap();
+
+    let first_file = checksums.checksums.first().unwrap();
+
+    let block = send_block_request(&connection, &first_file.path, 0).await.context("getting a block");
+    if let Err(e) = block {
+        println!("{}", unroll_anyhow_result(e));
+        return Ok(());
+    }
+    let block = block.unwrap().unwrap();
+    let data = block.block_data;
+
+    let data = String::from_utf8_lossy(&data);
+    println!("Received block: {data}");
+
+    connection.close(0u32.into(), b"Done");
+
     Ok(())
 }
 
