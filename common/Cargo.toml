@@ -8,3 +8,4 @@ anyhow = "1.0.98"
 bincode = "1.3.3"
 blake3 = "1.8.1"
 serde = { version = "1.0.219", features = ["derive"] }
+tokio = { version = "1.44.2", features = ["fs", "io-std", "io-util"] }

@@ -13,7 +13,7 @@ pub struct FileChecksumIter {
 impl FileChecksumIter {
     pub fn new(path: &str) -> Result<Self> {
         let mut file = File::open(path).context("opening file in checksum iter")?;
-        file.rewind().context("rewiding file in checksum iter")?;
+        file.rewind().context("rewinding file in checksum iter")?;
         Ok(FileChecksumIter { file, buffer: [0; CHUNK_SIZE] })
     }
 }
