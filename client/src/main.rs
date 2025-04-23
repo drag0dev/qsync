@@ -34,7 +34,10 @@ async fn main() -> Result<()> {
     if let Err(e) = checksums { println!("{}", unroll_anyhow_result(e)); return Ok(());}
 
     let checksums = checksums.unwrap();
-    if checksums.is_none() { return Ok(()); }
+    if checksums.is_none() {
+        println!("Erorr: remote path does not exist ");
+        return Ok(())
+    }
     let checksums = checksums.unwrap();
 
     let first_file = checksums.checksums.first().unwrap();
