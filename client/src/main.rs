@@ -1,4 +1,5 @@
 use clap::Parser;
+use std::path::Path;
 use std::sync::Arc;
 use std::net::SocketAddr;
 use anyhow::{Result, Context};
@@ -16,6 +17,19 @@ use skip_cert::SkipServerVerification;
 #[tokio::main]
 async fn main() -> Result<()> {
     let cmd = Command::parse();
+
+    let local_path = Path::new(&cmd.local_path);
+    if !local_path.exists() {
+        println!("Error: local path is not valid");
+        return Ok(());
+    }
+
+    let remote_path = Path::new(&cmd.remote_path);
+    if !remote_path.is_absolute() {
+        println!("Error: remote path has to be absolute");
+        return Ok(());
+    }
+
 
     rustls::crypto::aws_lc_rs::default_provider().install_default().expect("installing aws_ls_rs");
 
