@@ -5,7 +5,10 @@ use std::net::SocketAddr;
 use anyhow::{Result, Context};
 use quinn::crypto::rustls::QuicClientConfig;
 use quinn::{Connection, Endpoint};
-use common::helpers::unroll_anyhow_result;
+use common::{
+    helpers::unroll_anyhow_result,
+    file::generate_temp_entry_point
+};
 
 mod skip_cert;
 mod client;
@@ -53,6 +56,14 @@ async fn main() -> Result<()> {
         return Ok(())
     }
     let checksums = checksums.unwrap();
+
+    let temp_entry = generate_temp_entry_point(&cmd.local_path)
+        .context("generating temp entry point");
+    if let Err(e) = temp_entry {
+        println!("{}", unroll_anyhow_result(e));
+        return Ok(());
+    }
+    let temp_entry = temp_entry.unwrap();
 
     let first_file = checksums.checksums.first().unwrap();
 
