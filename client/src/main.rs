@@ -30,7 +30,7 @@ async fn main() -> Result<()> {
 
     println!("Connected to server: {:?}", connection.remote_address());
 
-    let checksums = send_sync_request(&connection, &cmd.path).await.context("sending sync request message");
+    let checksums = send_sync_request(&connection, &cmd.remote_path).await.context("sending sync request message");
     if let Err(e) = checksums { println!("{}", unroll_anyhow_result(e)); return Ok(());}
 
     let checksums = checksums.unwrap();
