@@ -1,4 +1,4 @@
-use std::path::{absolute, Path, PathBuf};
+use std::{ffi::OsStr, path::{absolute, Path, PathBuf}};
 use anyhow::{anyhow, Context, Result};
 use tempfile::Builder;
 
@@ -18,24 +18,32 @@ pub fn generate_temp_entry_point(local_target_path: &str) -> Result<PathBuf> {
     let child = child.unwrap();
 
     if path.is_file() {
-        let temp_file = Builder::new()
-            .prefix(child)
-            .rand_bytes(6)
-            .tempfile_in(parent)
-            .context("creating temp file")?;
-
-        let (_temp_file, temp_file_path) = temp_file.keep().context("keeping temp file")?;
-        return Ok(temp_file_path);
+        let temp_file_path = generate_temp_file(child, parent)?;
+        Ok(temp_file_path)
     } else {
-        let temp_dir = Builder::new()
-            .prefix(child)
-            .rand_bytes(6)
-            .tempdir_in(parent)
-            .context("creating temp dir")?;
-
-        let temp_dir_path = temp_dir.into_path();
-        return Ok(temp_dir_path);
+        let temp_dir_path = generate_temp_dir(child, parent)?;
+        Ok(temp_dir_path)
     }
 }
 
+fn generate_temp_file(child: &OsStr, path: &Path) -> Result<PathBuf> {
+        let temp_file = Builder::new()
+            .prefix(child)
+            .rand_bytes(6)
+            .tempfile_in(path)
+            .context("creating temp file")?;
 
+        let (_temp_file, temp_file_path) = temp_file.keep().context("keeping temp file")?;
+        Ok(temp_file_path)
+}
+
+fn generate_temp_dir(child: &OsStr, path: &Path) -> Result<PathBuf> {
+        let temp_dir = Builder::new()
+            .prefix(child)
+            .rand_bytes(6)
+            .tempdir_in(path)
+            .context("creating temp dir")?;
+
+        let temp_dir_path = temp_dir.into_path();
+        Ok(temp_dir_path)
+}
