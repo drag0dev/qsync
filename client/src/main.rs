@@ -33,7 +33,6 @@ async fn main() -> Result<()> {
         return Ok(());
     }
 
-
     rustls::crypto::aws_lc_rs::default_provider().install_default().expect("installing aws_ls_rs");
 
     let connection = get_connection()
@@ -48,7 +47,10 @@ async fn main() -> Result<()> {
     println!("Connected to server: {:?}", connection.remote_address());
 
     let checksums = send_sync_request(&connection, &cmd.remote_path).await.context("sending sync request message");
-    if let Err(e) = checksums { println!("{}", unroll_anyhow_result(e)); return Ok(());}
+    if let Err(e) = checksums {
+        println!("{}", unroll_anyhow_result(e));
+        return Ok(());
+    }
 
     let checksums = checksums.unwrap();
     if checksums.is_none() {
@@ -57,7 +59,7 @@ async fn main() -> Result<()> {
     }
     let checksums = checksums.unwrap();
 
-    let temp_entry = generate_temp_entry_point(&cmd.local_path)
+    let temp_entry = generate_temp_entry_point(&cmd.local_path, &cmd.remote_path, &checksums.checksums)
         .context("generating temp entry point");
     if let Err(e) = temp_entry {
         println!("{}", unroll_anyhow_result(e));
