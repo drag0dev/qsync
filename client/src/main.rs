@@ -1,10 +1,6 @@
 use clap::Parser;
 use std::path::Path;
-use std::sync::Arc;
-use std::net::SocketAddr;
 use anyhow::{Result, Context};
-use quinn::crypto::rustls::QuicClientConfig;
-use quinn::{Connection, Endpoint};
 use common::{
     helpers::unroll_anyhow_result,
     file::generate_temp_entry_point
@@ -13,9 +9,9 @@ use common::{
 mod skip_cert;
 mod client;
 mod command;
+mod helpers;
 use client::{send_block_request, send_sync_request};
 use command::Command;
-use skip_cert::SkipServerVerification;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -35,7 +31,7 @@ async fn main() -> Result<()> {
 
     rustls::crypto::aws_lc_rs::default_provider().install_default().expect("installing aws_ls_rs");
 
-    let connection = get_connection()
+    let connection = helpers::get_connection()
         .await
         .context("connecting to the server");
     if let Err(e) = connection {
@@ -83,36 +79,4 @@ async fn main() -> Result<()> {
     connection.close(0u32.into(), b"Done");
 
     Ok(())
-}
-
-async fn get_connection() -> Result<Connection> {
-    let client_config = configure_client()
-        .context("configuring client")?;
-
-    let mut client = Endpoint::client("0.0.0.0:0".parse()?)?;
-    client.set_default_client_config(client_config);
-
-    let server_addr = "127.0.0.1:4433".parse::<SocketAddr>()
-        .context("parsing server address")?;
-
-    let connection = client.connect(server_addr, "localhost")
-        .context("establishing connecting to server")?
-        .await
-        .context("connecting to server")?;
-
-    Ok(connection)
-}
-
-fn configure_client() -> Result<quinn::ClientConfig> {
-    let crypto = rustls::ClientConfig::builder()
-        .dangerous()
-        .with_custom_certificate_verifier(SkipServerVerification::new())
-        .with_no_client_auth();
-
-    let crypto = QuicClientConfig::try_from(crypto)
-        .context("creating quic config")?;
-
-    let client_config = quinn::ClientConfig::new(Arc::new(crypto));
-
-    Ok(client_config)
 }

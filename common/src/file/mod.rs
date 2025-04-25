@@ -11,3 +11,4 @@ pub static CHUNK_SIZE: usize = 16 * 1024;
 pub use checksum_helper::get_checksums;
 pub use read_block_helper::read_block;
 pub use temp_dir_tree_helper::generate_temp_entry_point;
+pub use file_assembler::FileAssembler;
