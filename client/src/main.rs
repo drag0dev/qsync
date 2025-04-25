@@ -1,13 +1,15 @@
 use clap::Parser;
 use quinn::Connection;
 use std::{
-    path::{Path, PathBuf}, sync::Arc
+    path::PathBuf,
+    sync::Arc,
 };
 use anyhow::{Result, Context};
 use common::{
     file::{generate_temp_entry_point, FileAssembler, FileMeta},
     helpers::unroll_anyhow_result
 };
+use futures::StreamExt;
 
 mod skip_cert;
 mod client;
@@ -15,6 +17,8 @@ mod command;
 mod helpers;
 use client::{send_block_request, send_sync_request};
 use command::Command;
+
+// TODO: close connection on early returns
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -26,7 +30,7 @@ async fn main() -> Result<()> {
         return Ok(());
     }
 
-    let remote_path = Path::new(&cmd.remote_path);
+    let remote_path = PathBuf::from(&cmd.remote_path);
     if !remote_path.is_absolute() {
         println!("Error: remote path has to be absolute");
         return Ok(());
@@ -72,25 +76,33 @@ async fn main() -> Result<()> {
     let temp_entry = temp_entry.unwrap();
 
     let entry_point_path = Arc::new(temp_entry);
-    let local_target_path = Arc::new(local_path);
+    let remote_target_path = Arc::new(remote_path);
     let connection = Arc::new(connection);
-    let res = process_file(&checksums.checksums[0], entry_point_path.clone(), local_target_path.clone(), connection.clone()).await;
+    let file_syncing_results: Vec<Result<bool>> = futures::stream::iter(checksums.checksums)
+        .map(|checksum | { sync_file(checksum, entry_point_path.clone(), remote_target_path.clone(), connection.clone()) })
+        .buffered(10)
+        .collect()
+        .await;
 
-    if let Err(e) = res { println!("{}", unroll_anyhow_result(e)); } else { println!("{:?}", res); }
+    let err = file_syncing_results.into_iter().find(|res| res.is_err());
+    if let Some(Err(e)) = err {
+        println!("Error: {}", unroll_anyhow_result(e));
+        return Ok(());
+    }
 
     connection.close(0u32.into(), b"Done");
 
     Ok(())
 }
 
-async fn process_file(
-    file_meta: &FileMeta, entry_point_path: Arc<PathBuf>,
-    local_target_path: Arc<PathBuf>, connection: Arc<Connection>
+async fn sync_file(
+    file_meta: FileMeta, entry_point_path: Arc<PathBuf>,
+    remote_target_path: Arc<PathBuf>, connection: Arc<Connection>
 ) -> Result<bool> {
     let local_file = &file_meta.path;
 
     // both unwraps are safe, because both have been done previously in generate_temp_entry_point
-    let local_file = local_file.strip_prefix(local_target_path.to_str().unwrap()).unwrap();
+    let local_file = local_file.strip_prefix(remote_target_path.to_str().unwrap()).unwrap();
     let local_file = if local_file.starts_with("/") { local_file.strip_prefix("/").unwrap() } else { local_file };
     let mut local_file_path = entry_point_path.as_ref().clone();
 
@@ -98,16 +110,14 @@ async fn process_file(
     // push an empty string causes it to add a trailing / making it a directory
     if local_file.len() > 0 { local_file_path.push(local_file); }
 
-
-    println!("{:?}", local_file_path);
     let mut file_assembler = FileAssembler::new(local_file_path.to_str().unwrap()).await?;
 
-    let (mut send, mut recv) = connection
-        .open_bi()
-        .await
-        .context("opening bi stream")?;
-
     for (block_idx, _block_checksum) in file_meta.checksums.iter().enumerate() {
+        let (mut send, mut recv) = connection
+            .open_bi()
+            .await
+            .context("opening bi stream")?;
+
         let block = send_block_request(&mut send, &mut recv, &file_meta.path, block_idx as u64)
             .await
             .context("getting block")?;
