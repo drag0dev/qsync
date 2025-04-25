@@ -91,6 +91,7 @@ async fn process_file(
 
     // both unwraps are safe, because both have been done previously in generate_temp_entry_point
     let local_file = local_file.strip_prefix(local_target_path.to_str().unwrap()).unwrap();
+    let local_file = if local_file.starts_with("/") { local_file.strip_prefix("/").unwrap() } else { local_file };
     let mut local_file_path = entry_point_path.as_ref().clone();
 
     // when the target is just a file stripping prefix would leave us with an empty path and

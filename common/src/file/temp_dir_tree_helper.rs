@@ -42,6 +42,9 @@ fn generate_temp_tree(entry_point: &PathBuf, remote_target_path: &str, checksums
         if file_local_path.is_none() { return Err(anyhow!("Remote file path malformed")); }
         let file_local_path = file_local_path.unwrap();
 
+        // remote path can have trailing slash when syncing a dirctory
+        let file_local_path = if file_local_path.starts_with("/") { file_local_path.strip_prefix("/").unwrap() } else { file_local_path };
+
         let mut local_path = PathBuf::from(entry_point);
         local_path.push(file_local_path);
 
