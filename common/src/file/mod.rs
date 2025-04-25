@@ -3,6 +3,7 @@ mod file_checksum_iter;
 mod checksum_helper;
 mod read_block_helper;
 mod temp_dir_tree_helper;
+mod file_assembler;
 
 pub use file_meta::FileMeta;
 pub use file_checksum_iter::FileChecksumIter;
