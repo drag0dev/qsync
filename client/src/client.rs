@@ -5,6 +5,7 @@ use common::message::{
 };
 use anyhow::{anyhow, Context, Result};
 use quinn::{RecvStream, SendStream};
+use tokio::io::AsyncWriteExt;
 
 pub async fn send_sync_request(send: &mut SendStream, recv: &mut RecvStream, path: &str) -> Result<Option<ChecksumsResponseMessage>> {
     let msg = SyncRequestMessage::new(path.into());
@@ -14,7 +15,7 @@ pub async fn send_sync_request(send: &mut SendStream, recv: &mut RecvStream, pat
         .await
         .context("writing sync request message")?;
 
-    send.finish().context("closing tx")?;
+    send.flush().await.context("flushing sync request message")?;
 
     let mut header_buff = [0u8; HEADER_LEN];
     recv.read_exact(&mut header_buff)
@@ -48,7 +49,8 @@ pub async fn send_block_request(send: &mut SendStream, recv: &mut RecvStream, pa
     send.write_all(&msg_ser)
         .await
         .context("writing block request message")?;
-    send.finish().context("closing tx")?;
+
+    send.flush().await.context("flushing block request message")?;
 
     let mut header_buff = [0u8; HEADER_LEN];
     recv.read_exact(&mut header_buff)
