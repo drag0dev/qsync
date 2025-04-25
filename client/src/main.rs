@@ -79,8 +79,8 @@ async fn main() -> Result<()> {
     let remote_target_path = Arc::new(remote_path);
     let connection = Arc::new(connection);
     let file_syncing_results: Vec<Result<bool>> = futures::stream::iter(checksums.checksums)
-        .map(|checksum | { sync_file(checksum, entry_point_path.clone(), remote_target_path.clone(), connection.clone()) })
-        .buffered(10)
+        .map(|checksum| { sync_file(checksum, entry_point_path.clone(), remote_target_path.clone(), connection.clone()) })
+        .buffered(cmd.concurrent_streams)
         .collect()
         .await;
 
