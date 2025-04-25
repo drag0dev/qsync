@@ -7,18 +7,19 @@ use common::{
         message_serialize_and_frame, BlockDataMessage, BlockRequestMessage,
         ChecksumsResponseMessage, ErrorMessage, MessageHeader, MessageType, SyncRequestMessage
 }};
+use tokio::io::AsyncWriteExt;
 use crate::error_message;
 
 pub async fn handle_sync_request(mut tx: SendStream, mut rx: RecvStream, header: &MessageHeader) -> Result<()> {
-    let msg_ser = rx.read_to_end(header.msg_len as usize)
+    let mut msg_ser = vec![0u8; header.msg_len as usize];
+    let reading_res = rx.read_exact(&mut msg_ser)
         .await
         .context("reading handle sync request");
 
-    if let Err(e) = msg_ser {
+    if let Err(e) = reading_res {
         error_message!(tx, "Internal server error");
         return Err(e);
     }
-    let msg_ser = msg_ser.unwrap();
 
     let sync_requst_msg = SyncRequestMessage::deserialize(&msg_ser);
     if let Err(_) = sync_requst_msg {
@@ -64,6 +65,7 @@ pub async fn handle_sync_request(mut tx: SendStream, mut rx: RecvStream, header:
 
     // no need to send error message because sending is already failing
     tx.write_all(&msg_ser).await.context("writing checksum response msg")?;
+    tx.flush().await.context("flushing checksums response")?;
 
     let _ = tx.finish();
 
@@ -71,15 +73,15 @@ pub async fn handle_sync_request(mut tx: SendStream, mut rx: RecvStream, header:
 }
 
 pub async fn handle_block_request(mut tx: SendStream, mut rx: RecvStream, header: &MessageHeader) -> Result<()> {
-    let msg_ser = rx.read_to_end(header.msg_len as usize)
+    let mut msg_ser = vec![0u8; header.msg_len as usize];
+    let reading_res = rx.read_exact(&mut msg_ser)
         .await
         .context("reading handle sync request");
 
-    if let Err(e) = msg_ser {
+    if let Err(e) = reading_res {
         error_message!(tx, "Internal server error");
         return Err(e);
     }
-    let msg_ser = msg_ser.unwrap();
 
     let block_request_msg = BlockRequestMessage::deserialize(&msg_ser);
     if let Err(e) = block_request_msg {
@@ -114,6 +116,7 @@ pub async fn handle_block_request(mut tx: SendStream, mut rx: RecvStream, header
     let msg_ser = msg_ser.unwrap();
 
     tx.write_all(&msg_ser).await.context("writing block data response msg")?;
+    tx.flush().await.context("flushing checksums response")?;
 
     let _ = tx.finish();
 
