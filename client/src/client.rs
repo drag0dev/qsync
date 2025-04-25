@@ -1,15 +1,12 @@
 use common::message::{
-    message_serialize_and_frame, BlockDataMessage, BlockRequestMessage, ChecksumsResponseMessage, ErrorMessage, MessageHeader, MessageType, SyncRequestMessage, HEADER_LEN
+    message_serialize_and_frame, BlockDataMessage,
+    BlockRequestMessage, ChecksumsResponseMessage, ErrorMessage,
+    MessageHeader, MessageType, SyncRequestMessage, HEADER_LEN
 };
 use anyhow::{anyhow, Context, Result};
-use quinn::Connection;
+use quinn::{RecvStream, SendStream};
 
-pub async fn send_sync_request(connection: &Connection, path: &str) -> Result<Option<ChecksumsResponseMessage>> {
-    let (mut send, mut recv) = connection
-        .open_bi()
-        .await
-        .context("opening bi stream")?;
-
+pub async fn send_sync_request(send: &mut SendStream, recv: &mut RecvStream, path: &str) -> Result<Option<ChecksumsResponseMessage>> {
     let msg = SyncRequestMessage::new(path.into());
     let msg_ser = message_serialize_and_frame(MessageType::SyncRequest, &msg)?;
 
@@ -44,12 +41,7 @@ pub async fn send_sync_request(connection: &Connection, path: &str) -> Result<Op
     }
 }
 
-pub async fn send_block_request(connection: &Connection, path: &str, block_idx: u64) -> Result<Option<BlockDataMessage>> {
-    let (mut send, mut recv) = connection
-        .open_bi()
-        .await
-        .context("opening bi stream")?;
-
+pub async fn send_block_request(send: &mut SendStream, recv: &mut RecvStream, path: &str, block_idx: u64) -> Result<Option<BlockDataMessage>> {
     let msg = BlockRequestMessage::new(block_idx, path.into());
     let msg_ser = message_serialize_and_frame(MessageType::BlockRequest, &msg)?;
 
