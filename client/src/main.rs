@@ -6,7 +6,7 @@ use std::{
 };
 use anyhow::{Result, Context};
 use common::{
-    file::{generate_temp_entry_point, FileAssembler, FileMeta},
+    file::{generate_temp_entry_point, AsyncFileChecksumIter, FileAssembler, FileMeta},
     helpers::unroll_anyhow_result
 };
 use futures::StreamExt;
@@ -77,9 +77,10 @@ async fn main() -> Result<()> {
 
     let entry_point_path = Arc::new(temp_entry);
     let remote_target_path = Arc::new(remote_path);
+    let local_target_path = Arc::new(local_path);
     let connection = Arc::new(connection);
     let file_syncing_results: Vec<Result<bool>> = futures::stream::iter(checksums.checksums)
-        .map(|checksum| { sync_file(checksum, entry_point_path.clone(), remote_target_path.clone(), connection.clone()) })
+        .map(|checksum| { sync_file(checksum, entry_point_path.clone(), local_target_path.clone(), remote_target_path.clone(), connection.clone()) })
         .buffered(cmd.concurrent_streams)
         .collect()
         .await;
@@ -97,7 +98,7 @@ async fn main() -> Result<()> {
 
 async fn sync_file(
     file_meta: FileMeta, entry_point_path: Arc<PathBuf>,
-    remote_target_path: Arc<PathBuf>, connection: Arc<Connection>
+    local_target_path: Arc<PathBuf>, remote_target_path: Arc<PathBuf>, connection: Arc<Connection>
 ) -> Result<bool> {
     let local_file = &file_meta.path;
 
@@ -105,29 +106,65 @@ async fn sync_file(
     let local_file = local_file.strip_prefix(remote_target_path.to_str().unwrap()).unwrap();
     let local_file = if local_file.starts_with("/") { local_file.strip_prefix("/").unwrap() } else { local_file };
     let mut local_file_path = entry_point_path.as_ref().clone();
+    let mut existing_file_path = local_target_path.as_ref().clone();
 
-    // when the target is just a file stripping prefix would leave us with an empty path and
-    // push an empty string causes it to add a trailing / making it a directory
-    if local_file.len() > 0 { local_file_path.push(local_file); }
+    // when the target is just a file, stripping prefix would leave an empty path and
+    // pushing an empty path causes it to add a trailing / making it a directory
+    if local_file.len() > 0 {
+        local_file_path.push(local_file);
+        existing_file_path.push(local_file);
+    }
 
+    let local_file_checksums = AsyncFileChecksumIter::new(existing_file_path.to_str().unwrap()).await?;
     let mut file_assembler = FileAssembler::new(local_file_path.to_str().unwrap()).await?;
 
-    for (block_idx, _block_checksum) in file_meta.checksums.iter().enumerate() {
-        let (mut send, mut recv) = connection
-            .open_bi()
-            .await
-            .context("opening bi stream")?;
+    if let Some(mut local_file_checksums) = local_file_checksums {
+        for (block_idx, remote_block_checksum) in file_meta.checksums.iter().enumerate() {
+            let local_block_checksum = local_file_checksums
+                .next()
+                .await
+                .context("reading existing block checksum")?;
 
-        let block = send_block_request(&mut send, &mut recv, &file_meta.path, block_idx as u64)
-            .await
-            .context("getting block")?;
+            // avoiding asking server to transmit the block
+            if local_block_checksum.is_some() && &local_block_checksum.unwrap() == remote_block_checksum {
+                let block = local_file_checksums.get_current_block();
+                file_assembler.write_next_block(&block).await?;
+            } else {
+                let (mut send, mut recv) = connection
+                    .open_bi()
+                    .await
+                    .context("opening bi stream")?;
 
-        if block.is_none() { return Ok(false); }
-        let block = block.unwrap();
+                let block = send_block_request(&mut send, &mut recv, &file_meta.path, block_idx as u64)
+                    .await
+                    .context("getting block")?;
 
-        file_assembler
-            .write_next_block(&block.block_data)
-            .await?;
+                if block.is_none() { return Ok(false); }
+                let block = block.unwrap();
+
+                file_assembler
+                    .write_next_block(&block.block_data)
+                    .await?;
+            }
+        }
+    } else {
+        for (block_idx, _) in file_meta.checksums.iter().enumerate() {
+            let (mut send, mut recv) = connection
+                .open_bi()
+                .await
+                .context("opening bi stream")?;
+
+            let block = send_block_request(&mut send, &mut recv, &file_meta.path, block_idx as u64)
+                .await
+                .context("getting block")?;
+
+            if block.is_none() { return Ok(false); }
+            let block = block.unwrap();
+
+            file_assembler
+                .write_next_block(&block.block_data)
+                .await?;
+        }
     }
 
     Ok(true)
