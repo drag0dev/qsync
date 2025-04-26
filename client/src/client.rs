@@ -7,8 +7,8 @@ use anyhow::{anyhow, Context, Result};
 use quinn::{RecvStream, SendStream};
 use tokio::io::AsyncWriteExt;
 
-pub async fn send_sync_request(send: &mut SendStream, recv: &mut RecvStream, path: &str) -> Result<Option<ChecksumsResponseMessage>> {
-    let msg = SyncRequestMessage::new(path.into());
+pub async fn send_sync_request(send: &mut SendStream, recv: &mut RecvStream, path: &str, is_dir: bool) -> Result<Option<ChecksumsResponseMessage>> {
+    let msg = SyncRequestMessage::new(path.into(), is_dir);
     let msg_ser = message_serialize_and_frame(MessageType::SyncRequest, &msg)?;
 
     send.write_all(&msg_ser)

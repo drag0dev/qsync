@@ -28,6 +28,16 @@ pub async fn handle_sync_request(mut tx: SendStream, mut rx: RecvStream, header:
     }
     let sync_requst_msg = sync_requst_msg.unwrap();
 
+    // check if client is requesting a file-file or dir-dir sync
+    let res = tokio::fs::metadata(&sync_requst_msg.path)
+        .await
+        .context("getting path metadata")?;
+
+    if res.is_dir() != sync_requst_msg.is_dir {
+        error_message!(tx, "File and a directory cannot be synced");
+        return Ok(());
+    }
+
     let path = Path::new(&sync_requst_msg.path);
     if !path.exists() {
         error_message!(tx, "Path does not exist");

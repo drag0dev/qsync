@@ -54,17 +54,14 @@ async fn main() -> Result<()> {
         .await
         .context("opening bi stream for sync request")?;
 
-    let checksums = send_sync_request(&mut send, &mut recv, &cmd.remote_path).await.context("sending sync request message");
+    let checksums = send_sync_request(&mut send, &mut recv, &cmd.remote_path, local_path.is_dir()).await.context("sending sync request message");
     if let Err(e) = checksums {
         println!("{}", unroll_anyhow_result(e));
         return Ok(());
     }
 
     let checksums = checksums.unwrap();
-    if checksums.is_none() {
-        println!("Erorr: remote path does not exist ");
-        return Ok(())
-    }
+    if checksums.is_none() { return Ok(()) }
     let checksums = checksums.unwrap();
 
     let temp_entry = generate_temp_entry_point(&cmd.local_path, &cmd.remote_path, &checksums.checksums)

@@ -4,12 +4,13 @@ use super::SerializableMessage;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SyncRequestMessage {
-    pub path: String
+    pub path: String,
+    pub is_dir: bool,
 }
 
 impl SyncRequestMessage {
-    pub fn new(path: String) -> Self {
-        Self { path }
+    pub fn new(path: String, is_dir: bool) -> Self {
+        Self { path, is_dir }
     }
 
     pub fn deserialize(msg: &[u8]) -> Result<Self> {
