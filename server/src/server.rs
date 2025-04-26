@@ -3,7 +3,8 @@ use std::{
     path::Path, str::FromStr, sync::Arc
 };
 use crate::{
-    handlers::{handle_block_request, handle_sync_request}, helpers::{generate_dummy_crt, CERT_PATH, KEY_PATH}
+    handlers::{handle_block_request, handle_sync_request},
+    helpers::{generate_dummy_crt, CERT_PATH, KEY_PATH}
 };
 use anyhow::{Context, Result};
 use common::{
@@ -12,14 +13,15 @@ use common::{
 };
 use quinn::{
     crypto::rustls::QuicServerConfig,
-    Endpoint,
-    ServerConfig
+    Endpoint, RecvStream, ServerConfig
 };
 use rustls_pki_types::{
     pem::PemObject,
     CertificateDer,
     PrivatePkcs8KeyDer
 };
+
+// TODO: inform client on internal server when possible
 
 #[tokio::main]
 pub async fn run(port: u16) -> Result<()> {
@@ -48,20 +50,23 @@ async fn handle_connection(connecting: quinn::Incoming) -> Result<()> {
     let connection = connecting.await?;
     println!("Connection established from: {}", connection.remote_address());
 
-    while let Ok((send, mut recv)) = connection.accept_bi().await {
-        let mut header_buff = [0u8; HEADER_LEN];
-        recv.read_exact(&mut header_buff)
-            .await
-            .context("reading header")?;
-        let header = MessageHeader::deserialize(&header_buff)?;
+    while let Ok((send, recv)) = connection.accept_bi().await { tokio::spawn(handle_new_stream(send, recv)); }
 
-        match header.msg_type {
-            MessageType::SyncRequest => handle_sync_request(send, recv, &header).await,
-            MessageType::BlockRequest => handle_block_request(send, recv, &header).await,
-            _ => todo!("return error")
-        }?;
-    }
+    Ok(())
+}
 
+async fn handle_new_stream(send: quinn::SendStream, mut recv: RecvStream) -> Result<()> {
+    let mut header_buff = [0u8; HEADER_LEN];
+    recv.read_exact(&mut header_buff)
+        .await
+        .context("reading header")?;
+    let header = MessageHeader::deserialize(&header_buff)?;
+
+    match header.msg_type {
+        MessageType::SyncRequest => handle_sync_request(send, recv, &header).await,
+        MessageType::BlockRequest => handle_block_request(send, recv, &header).await,
+        _ => todo!("return error")
+    }?;
     Ok(())
 }
 
