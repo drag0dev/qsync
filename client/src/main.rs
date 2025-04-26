@@ -93,6 +93,30 @@ async fn main() -> Result<()> {
 
     connection.close(0u32.into(), b"Done");
 
+    // remove the old target, and rename the newly synced to the old target
+
+    let res = if local_target_path.is_dir() {
+        tokio::fs::remove_dir_all(local_target_path.as_ref()).await
+    } else {
+        tokio::fs::remove_file(local_target_path.as_ref()).await
+    };
+    if let Err(e) = res {
+        println!("Because of an error during the process of replacing the old target with newly synced one, look for a file/dir \
+            whose name starts with the name of the sync target. That file/dir is the newly synced one.");
+        println!("Error: {}", unroll_anyhow_result(e.into()));
+        return Ok(());
+    }
+
+    let res = tokio::fs::rename(entry_point_path.as_ref(), local_target_path.as_ref()).await;
+    if let Err(e) = res {
+        println!("Because of an error during the process of replacing the old target with newly synced one, look for a file/dir \
+            whose name starts with the name of the sync target. That file/dir is the newly synced one.");
+        println!("Error: {}", unroll_anyhow_result(e.into()));
+        return Ok(());
+    }
+
+    println!("Successfully synced");
+
     Ok(())
 }
 
