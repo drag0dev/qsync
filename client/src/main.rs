@@ -38,7 +38,7 @@ async fn main() -> Result<()> {
 
     rustls::crypto::aws_lc_rs::default_provider().install_default().expect("installing aws_ls_rs");
 
-    let connection = helpers::get_connection()
+    let connection = helpers::get_connection(&cmd.server_address, cmd.port)
         .await
         .context("connecting to the server");
     if let Err(e) = connection {

@@ -5,14 +5,15 @@ use std::net::SocketAddr;
 use quinn::{Connection, Endpoint};
 use anyhow::{Result, Context};
 
-pub async fn get_connection() -> Result<Connection> {
+pub async fn get_connection(server_address: &str, port: u16) -> Result<Connection> {
     let client_config = configure_client()
         .context("configuring client")?;
 
     let mut client = Endpoint::client("0.0.0.0:0".parse()?)?;
     client.set_default_client_config(client_config);
 
-    let server_addr = "127.0.0.1:4433".parse::<SocketAddr>()
+    let server_address = format!("{server_address}:{port}");
+    let server_addr = server_address.parse::<SocketAddr>()
         .context("parsing server address")?;
 
     let connection = client.connect(server_addr, "localhost")
