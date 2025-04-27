@@ -75,10 +75,11 @@ async fn main() -> Result<()> {
     let entry_point_path = Arc::new(temp_entry);
     let remote_target_path = Arc::new(remote_path);
     let local_target_path = Arc::new(local_path);
+    let args = Arc::new(cmd);
     let connection = Arc::new(connection);
     let file_syncing_results: Vec<Result<bool>> = futures::stream::iter(checksums.checksums)
-        .map(|checksum| { sync_file(checksum, entry_point_path.clone(), local_target_path.clone(), remote_target_path.clone(), connection.clone()) })
-        .buffered(cmd.concurrent_streams)
+        .map(|checksum| { sync_file(checksum, entry_point_path.clone(), local_target_path.clone(), remote_target_path.clone(), connection.clone(), args.clone()) })
+        .buffered(args.concurrent_streams)
         .collect()
         .await;
 
@@ -118,8 +119,8 @@ async fn main() -> Result<()> {
 }
 
 async fn sync_file(
-    file_meta: FileMeta, entry_point_path: Arc<PathBuf>,
-    local_target_path: Arc<PathBuf>, remote_target_path: Arc<PathBuf>, connection: Arc<Connection>
+    file_meta: FileMeta, entry_point_path: Arc<PathBuf>, local_target_path: Arc<PathBuf>,
+    remote_target_path: Arc<PathBuf>, connection: Arc<Connection>, args: Arc<Command>
 ) -> Result<bool> {
     let local_file = &file_meta.path;
 
@@ -187,6 +188,8 @@ async fn sync_file(
                 .await?;
         }
     }
+
+    if args.timestamp { file_assembler.set_modified_timestamp(file_meta.modified_timestamp).await?; }
 
     Ok(true)
 }

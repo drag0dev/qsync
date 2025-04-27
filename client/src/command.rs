@@ -17,4 +17,7 @@ pub struct Command {
 
     #[arg(short, long, default_value_t = 25)]
     pub concurrent_streams: usize,
+
+    #[arg(short, long, default_value_t = false)]
+    pub timestamp: bool,
 }
