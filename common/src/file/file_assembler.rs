@@ -1,3 +1,5 @@
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
 use anyhow::{Result, Context};
 use tokio::{
     fs::{File, OpenOptions},
@@ -24,6 +26,20 @@ impl FileAssembler {
             .write_all(block)
             .await
             .context("writing a block")?;
+        Ok(())
+    }
+
+    pub async fn set_modified_timestamp(&mut self, timestamp: u128) -> Result<()> {
+        let f = self.file.try_clone().await.context("cloning fd when setting timestamp")?;
+        let f = f.into_std().await;
+        tokio::task::spawn_blocking(move || {
+            let secs = (timestamp / 1000) as u64;
+            let sub_millies = (timestamp % 1000) as u32;
+            let nanos = sub_millies * 1_000_000;
+            let timestamp = UNIX_EPOCH + Duration::new(secs, nanos);
+            f.set_modified(SystemTime::from(timestamp)).context("setting modified timestamp")
+        }).await??;
+
         Ok(())
     }
 }

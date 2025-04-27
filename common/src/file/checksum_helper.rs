@@ -1,4 +1,9 @@
-use std::{collections::VecDeque, path::Path};
+use std::{
+    collections::VecDeque,
+    os::unix::fs::MetadataExt,
+    path::{Path, PathBuf},
+    time::SystemTime
+};
 use anyhow::{anyhow, Context, Result};
 use super::{
     FileMeta,
@@ -12,7 +17,8 @@ pub fn get_checksums(path_str: &str) -> Result<Vec<FileMeta>> {
     let mut res = Vec::new();
     if path.is_file() {
         let checksums = get_file_checkums(&path_str).context("getting file checksums")?;
-        let meta = FileMeta::new(path_str.to_owned(), checksums);
+        let meta = get_file_meta(&path.into())?;
+        let meta = FileMeta::new(path_str.to_owned(), checksums, meta.0, meta.1);
         res.push(meta);
     }
     else if path.is_symlink() {}
@@ -37,7 +43,8 @@ pub fn get_checksums(path_str: &str) -> Result<Vec<FileMeta>> {
 
                     if entry.is_file() {
                         let checksums = get_file_checkums(&entry_item_path).context("getting file checksums")?;
-                        let meta = FileMeta::new(entry_item_path, checksums);
+                        let meta = get_file_meta(&entry)?;
+                        let meta = FileMeta::new(entry_item_path, checksums, meta.0, meta.1);
                         res.push(meta);
                     } else if entry.is_symlink() {}
                     else { dirs.push_back(entry); }
@@ -48,6 +55,19 @@ pub fn get_checksums(path_str: &str) -> Result<Vec<FileMeta>> {
     }
 
      Ok(res)
+}
+
+fn get_file_meta(file: &PathBuf) -> Result<(u128, u64)> {
+    let meta = file.metadata().context("getting file metadata")?;
+
+    let modified_timestamp = meta
+        .modified()
+        .context("getting accessed timestamp")?
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .context("calculating timestamp")?
+        .as_millis();
+
+    Ok((modified_timestamp, meta.size()))
 }
 
 fn get_file_checkums(path: &str) -> Result<Vec<String>> {
