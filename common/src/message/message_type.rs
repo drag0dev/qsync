@@ -17,9 +17,6 @@ pub enum MessageType {
 
     /// Server responds to BlockRequest with block index, path, and the block data
     Error,
-
-    /// Finalizes the transfer
-    Complete
 }
 
 impl Display for MessageType {
@@ -30,7 +27,6 @@ impl Display for MessageType {
             Self::BlockRequest => write!(f, "Block Request"),
             Self::BlockData => write!(f, "Block Data"),
             Self::Error => write!(f, "Error"),
-            Self::Complete => write!(f, "Complete"),
         }
     }
 }
