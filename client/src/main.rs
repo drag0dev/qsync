@@ -1,4 +1,5 @@
 use clap::Parser;
+use helpers::naive_check;
 use quinn::Connection;
 use std::{
     path::PathBuf,
@@ -141,14 +142,16 @@ async fn sync_file(
     let mut file_assembler = FileAssembler::new(local_file_path.to_str().unwrap()).await?;
 
     if let Some(mut local_file_checksums) = local_file_checksums {
+        let naive_check_res = if args.naive { naive_check(&existing_file_path, file_meta.size, file_meta.modified_timestamp).await? } else { false };
         for (block_idx, remote_block_checksum) in file_meta.checksums.iter().enumerate() {
             let local_block_checksum = local_file_checksums
                 .next()
                 .await
                 .context("reading existing block checksum")?;
 
-            // avoiding asking server to transmit the block
-            if local_block_checksum.is_some() && &local_block_checksum.unwrap() == remote_block_checksum {
+            // avoiding asking server to transmit the block if we have the block already or if we
+            // are only doing naive check
+            if (args.naive && naive_check_res) || (local_block_checksum.is_some() && &local_block_checksum.unwrap() == remote_block_checksum) {
                 let block = local_file_checksums.get_current_block();
                 file_assembler.write_next_block(&block).await?;
             } else {

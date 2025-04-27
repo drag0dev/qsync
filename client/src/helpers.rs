@@ -1,6 +1,9 @@
 use crate::skip_cert::SkipServerVerification;
 use quinn::crypto::rustls::QuicClientConfig;
-use std::sync::Arc;
+use tokio::fs::File;
+use std::os::unix::fs::MetadataExt;
+use std::time::SystemTime;
+use std::{path::PathBuf, sync::Arc};
 use std::net::SocketAddr;
 use quinn::{Connection, Endpoint};
 use anyhow::{Result, Context};
@@ -36,4 +39,29 @@ pub fn configure_client() -> Result<quinn::ClientConfig> {
     let client_config = quinn::ClientConfig::new(Arc::new(crypto));
 
     Ok(client_config)
+}
+
+/// checks if the local file has matching size ajnd modified timestamp
+pub async fn naive_check(path: &PathBuf, remote_size: u64, remote_modified_timestamp: u128) -> Result<bool> {
+    let file = File::open(path)
+        .await
+        .context("opening local file for naive check")?;
+
+    let meta = file
+        .metadata()
+        .await
+        .context("getting metadata")?;
+
+    if meta.size() != remote_size { return Ok(false); }
+
+    let local_modified_timestamp = meta
+        .modified()
+        .context("getting local modified time")?
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .context("getting local modified timestamp")?
+        .as_millis();
+
+    if local_modified_timestamp != remote_modified_timestamp { return Ok(false); }
+
+    Ok(true)
 }
