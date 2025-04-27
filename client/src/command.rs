@@ -23,4 +23,7 @@ pub struct Command {
 
     #[arg(short, long, default_value_t = false)]
     pub naive: bool,
+
+    #[arg(short, long, default_value_t = 16384)]
+    pub block_size: usize,
 }

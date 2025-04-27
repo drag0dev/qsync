@@ -5,16 +5,15 @@ use tokio::{
     io::{AsyncReadExt, AsyncSeekExt}
 };
 use anyhow::{Context, Result};
-use super::CHUNK_SIZE;
 
 pub struct AsyncFileChecksumIter {
     file: File,
-    buffer: [u8; CHUNK_SIZE],
+    buffer: Vec<u8>,
     loaded_data: usize,
 }
 
 impl AsyncFileChecksumIter {
-    pub async fn new(path: &str) -> Result<Option<Self>> {
+    pub async fn new(path: &str, block_size: usize) -> Result<Option<Self>> {
         let file = File::open(path)
             .await;
 
@@ -33,7 +32,7 @@ impl AsyncFileChecksumIter {
             .await
             .context("rewinding file in checksum iter")?;
 
-        Ok(Some(AsyncFileChecksumIter { file, buffer: [0; CHUNK_SIZE], loaded_data: 0}))
+        Ok(Some(AsyncFileChecksumIter { file, buffer: vec![0; block_size], loaded_data: 0}))
     }
 
     pub fn get_current_block<'a>(&'a self) -> &'a[u8] {

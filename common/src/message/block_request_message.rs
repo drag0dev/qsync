@@ -6,11 +6,12 @@ use super::SerializableMessage;
 pub struct BlockRequestMessage {
     pub block_idx: u64,
     pub file_path: String,
+    pub block_size: usize,
 }
 
 impl BlockRequestMessage {
-    pub fn new(block_idx: u64, file_path: String) -> Self {
-        BlockRequestMessage { block_idx, file_path }
+    pub fn new(block_idx: u64, file_path: String, block_size: usize) -> Self {
+        BlockRequestMessage { block_idx, file_path, block_size }
     }
 
     pub fn deserialize(msg: &[u8]) -> Result<Self> {

@@ -6,11 +6,12 @@ use super::SerializableMessage;
 pub struct SyncRequestMessage {
     pub path: String,
     pub is_dir: bool,
+    pub block_size: usize,
 }
 
 impl SyncRequestMessage {
-    pub fn new(path: String, is_dir: bool) -> Self {
-        Self { path, is_dir }
+    pub fn new(path: String, is_dir: bool, block_size: usize) -> Self {
+        Self { path, is_dir, block_size }
     }
 
     pub fn deserialize(msg: &[u8]) -> Result<Self> {

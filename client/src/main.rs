@@ -55,7 +55,7 @@ async fn main() -> Result<()> {
         .await
         .context("opening bi stream for sync request")?;
 
-    let checksums = send_sync_request(&mut send, &mut recv, &cmd.remote_path, local_path.is_dir()).await.context("sending sync request message");
+    let checksums = send_sync_request(&mut send, &mut recv, &cmd.remote_path, local_path.is_dir(), cmd.block_size).await.context("sending sync request message");
     if let Err(e) = checksums {
         println!("{}", unroll_anyhow_result(e));
         return Ok(());
@@ -138,7 +138,7 @@ async fn sync_file(
         existing_file_path.push(local_file);
     }
 
-    let local_file_checksums = AsyncFileChecksumIter::new(existing_file_path.to_str().unwrap()).await?;
+    let local_file_checksums = AsyncFileChecksumIter::new(existing_file_path.to_str().unwrap(), args.block_size).await?;
     let mut file_assembler = FileAssembler::new(local_file_path.to_str().unwrap()).await?;
 
     if let Some(mut local_file_checksums) = local_file_checksums {
@@ -160,7 +160,7 @@ async fn sync_file(
                     .await
                     .context("opening bi stream")?;
 
-                let block = send_block_request(&mut send, &mut recv, &file_meta.path, block_idx as u64)
+                let block = send_block_request(&mut send, &mut recv, &file_meta.path, block_idx as u64, args.block_size)
                     .await
                     .context("getting block")?;
 
@@ -179,7 +179,7 @@ async fn sync_file(
                 .await
                 .context("opening bi stream")?;
 
-            let block = send_block_request(&mut send, &mut recv, &file_meta.path, block_idx as u64)
+            let block = send_block_request(&mut send, &mut recv, &file_meta.path, block_idx as u64, args.block_size)
                 .await
                 .context("getting block")?;
 

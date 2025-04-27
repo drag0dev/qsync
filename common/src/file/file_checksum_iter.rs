@@ -3,18 +3,17 @@ use std::{
     io::{Read, Seek}
 };
 use anyhow::{Context, Result};
-use super::CHUNK_SIZE;
 
 pub struct FileChecksumIter {
     file: File,
-    buffer: [u8; CHUNK_SIZE],
+    buffer: Vec<u8>,
 }
 
 impl FileChecksumIter {
-    pub fn new(path: &str) -> Result<Self> {
+    pub fn new(path: &str, block_size: usize) -> Result<Self> {
         let mut file = File::open(path).context("opening file in checksum iter")?;
         file.rewind().context("rewinding file in checksum iter")?;
-        Ok(FileChecksumIter { file, buffer: [0; CHUNK_SIZE] })
+        Ok(FileChecksumIter { file, buffer: vec![0; block_size] })
     }
 }
 

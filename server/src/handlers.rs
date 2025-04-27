@@ -45,7 +45,7 @@ pub async fn handle_sync_request(mut tx: SendStream, mut rx: RecvStream, header:
     }
 
     let checksums = tokio::task::spawn_blocking(move || {
-        common::file::get_checksums(&sync_requst_msg.path)
+        common::file::get_checksums(&sync_requst_msg.path, sync_requst_msg.block_size)
     }).await
     .context("running checksums iterator");
 
@@ -106,7 +106,7 @@ pub async fn handle_block_request(mut tx: SendStream, mut rx: RecvStream, header
         return Ok(());
     }
 
-    let block_data = read_block(&block_request_msg.file_path, block_request_msg.block_idx)
+    let block_data = read_block(&block_request_msg.file_path, block_request_msg.block_idx, block_request_msg.block_size)
         .await
         .context("reading block data");
 

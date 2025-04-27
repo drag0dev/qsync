@@ -9,7 +9,6 @@ mod file_assembler;
 pub use file_meta::FileMeta;
 pub use file_checksum_iter::FileChecksumIter;
 pub use async_file_checksum_iter::AsyncFileChecksumIter;
-pub static CHUNK_SIZE: usize = 16 * 1024;
 pub use checksum_helper::get_checksums;
 pub use read_block_helper::read_block;
 pub use temp_dir_tree_helper::generate_temp_entry_point;
