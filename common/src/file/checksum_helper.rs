@@ -1,6 +1,5 @@
 use std::{
     collections::VecDeque,
-    os::unix::fs::MetadataExt,
     path::{Path, PathBuf},
     time::SystemTime
 };
@@ -67,7 +66,7 @@ fn get_file_meta(file: &PathBuf) -> Result<(u128, u64)> {
         .context("calculating timestamp")?
         .as_millis();
 
-    Ok((modified_timestamp, meta.size()))
+    Ok((modified_timestamp, meta.len()))
 }
 
 fn get_file_checkums(path: &str) -> Result<Vec<String>> {

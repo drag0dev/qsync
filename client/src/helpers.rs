@@ -1,7 +1,6 @@
 use crate::skip_cert::SkipServerVerification;
 use quinn::crypto::rustls::QuicClientConfig;
 use tokio::fs::File;
-use std::os::unix::fs::MetadataExt;
 use std::time::SystemTime;
 use std::{path::PathBuf, sync::Arc};
 use std::net::SocketAddr;
@@ -52,7 +51,7 @@ pub async fn naive_check(path: &PathBuf, remote_size: u64, remote_modified_times
         .await
         .context("getting metadata")?;
 
-    if meta.size() != remote_size { return Ok(false); }
+    if meta.len() != remote_size { return Ok(false); }
 
     let local_modified_timestamp = meta
         .modified()
