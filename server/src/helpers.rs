@@ -25,7 +25,7 @@ pub fn generate_dummy_crt() -> Result<()> {
 macro_rules! error_message {
     ( $tx: ident, $msg:expr ) => {{
         let msg = ErrorMessage::new($msg.into());
-        let msg_ser = message_serialize_and_frame(MessageType::Error, &msg)?;
+        let msg_ser = message_serialize_and_frame(MessageType::Error, &msg, false).await?;
         $tx.write_all(&msg_ser).await.context("writing error msg")?;
     }};
 }

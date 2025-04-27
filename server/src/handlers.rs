@@ -65,7 +65,7 @@ pub async fn handle_sync_request(mut tx: SendStream, mut rx: RecvStream, header:
     };
 
     let msg = ChecksumsResponseMessage::new(checksums);
-    let msg_ser = message_serialize_and_frame(MessageType::ChecksumsResponse, &msg);
+    let msg_ser = message_serialize_and_frame(MessageType::ChecksumsResponse, &msg, true).await;
 
     if let Err(e) = msg_ser {
         error_message!(tx, "Internal server error");
@@ -118,7 +118,7 @@ pub async fn handle_block_request(mut tx: SendStream, mut rx: RecvStream, header
 
     let msg = BlockDataMessage::new(block_request_msg.block_idx, block_request_msg.file_path.into(), block_data);
 
-    let msg_ser = message_serialize_and_frame(MessageType::BlockData, &msg);
+    let msg_ser = message_serialize_and_frame(MessageType::BlockData, &msg, true).await;
     if let Err(e) = msg_ser {
         error_message!(tx, "Internal server error");
         return Err(e);
