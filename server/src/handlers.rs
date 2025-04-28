@@ -64,7 +64,7 @@ pub async fn handle_sync_request(mut tx: SendStream, mut rx: RecvStream, header:
             }
     };
 
-    let msg = ChecksumsResponseMessage::new(checksums);
+    let msg = ChecksumsResponseMessage::new(checksums.0, checksums.1);
     let msg_ser = message_serialize_and_frame(MessageType::ChecksumsResponse, &msg, true).await;
 
     if let Err(e) = msg_ser {

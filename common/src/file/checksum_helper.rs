@@ -5,20 +5,21 @@ use std::{
 };
 use anyhow::{anyhow, Context, Result};
 use super::{
-    FileMeta,
-    FileChecksumIter
+    DirMeta, FileChecksumIter, FileMeta
 };
 
-pub fn get_checksums(path_str: &str, block_size: usize) -> Result<Vec<FileMeta>> {
+pub fn get_checksums(path_str: &str, block_size: usize) -> Result<(Vec<FileMeta>, Vec<DirMeta>)> {
     let path = Path::new(path_str);
 
-    // TODO: handle symlinks
-    let mut res = Vec::new();
+    let mut dir_meta = Vec::new();
+
+    // TODO: handle symlinks first, because both dir and file can be a symlink
+    let mut file_meta = Vec::new();
     if path.is_file() {
         let checksums = get_file_checkums(&path_str, block_size).context("getting file checksums")?;
         let meta = get_file_meta(&path.into())?;
         let meta = FileMeta::new(path_str.to_owned(), checksums, meta.0, meta.1);
-        res.push(meta);
+        file_meta.push(meta);
     }
     else if path.is_symlink() {}
     else {
@@ -27,9 +28,11 @@ pub fn get_checksums(path_str: &str, block_size: usize) -> Result<Vec<FileMeta>>
         while dirs.len() > 0 {
             let mut n = dirs.len();
             while n > 0 {
-                let dir_entries = dirs
+                let dir = dirs
                     .pop_front()
-                    .unwrap()
+                    .unwrap();
+
+                let dir_entries = (&dir)
                     .read_dir()
                     .context("reading directory items")?;
                 for entry in dir_entries {
@@ -44,16 +47,20 @@ pub fn get_checksums(path_str: &str, block_size: usize) -> Result<Vec<FileMeta>>
                         let checksums = get_file_checkums(&entry_item_path, block_size).context("getting file checksums")?;
                         let meta = get_file_meta(&entry)?;
                         let meta = FileMeta::new(entry_item_path, checksums, meta.0, meta.1);
-                        res.push(meta);
+                        file_meta.push(meta);
                     } else if entry.is_symlink() {}
                     else { dirs.push_back(entry); }
                 }
+
+                let dir_timestamp = get_file_meta(&dir).context("getting dir meta")?.0;
+                let curr_dir_meta = DirMeta::new(dir.to_str().unwrap().to_owned(), dir_timestamp);
+                dir_meta.push(curr_dir_meta);
                 n -= 1;
             }
         }
     }
 
-     Ok(res)
+     Ok((file_meta, dir_meta))
 }
 
 fn get_file_meta(file: &PathBuf) -> Result<(u128, u64)> {

@@ -7,7 +7,10 @@ use std::{
 };
 use anyhow::{Result, Context};
 use common::{
-    file::{generate_temp_entry_point, AsyncFileChecksumIter, FileAssembler, FileMeta},
+    file::{
+        generate_temp_entry_point, update_timestamps_on_dirs, AsyncFileChecksumIter,
+        FileAssembler, FileMeta
+    },
     helpers::unroll_anyhow_result
 };
 use futures::StreamExt;
@@ -65,7 +68,7 @@ async fn main() -> Result<()> {
     if checksums.is_none() { return Ok(()) }
     let checksums = checksums.unwrap();
 
-    let temp_entry = generate_temp_entry_point(&cmd.local_path, &cmd.remote_path, &checksums.checksums)
+    let temp_entry = generate_temp_entry_point(&cmd.local_path, &cmd.remote_path, &checksums.files, &checksums.directories)
         .context("generating temp entry point");
     if let Err(e) = temp_entry {
         println!("{}", unroll_anyhow_result(e));
@@ -78,7 +81,7 @@ async fn main() -> Result<()> {
     let local_target_path = Arc::new(local_path);
     let args = Arc::new(cmd);
     let connection = Arc::new(connection);
-    let file_syncing_results: Vec<Result<bool>> = futures::stream::iter(checksums.checksums)
+    let file_syncing_results: Vec<Result<bool>> = futures::stream::iter(checksums.files)
         .map(|checksum| { sync_file(checksum, entry_point_path.clone(), local_target_path.clone(), remote_target_path.clone(), connection.clone(), args.clone()) })
         .buffered(args.concurrent_streams)
         .collect()
@@ -112,6 +115,15 @@ async fn main() -> Result<()> {
             whose name starts with the name of the sync target. That file/dir is the newly synced one.");
         println!("Error: {}", unroll_anyhow_result(e.into()));
         return Ok(());
+    }
+
+    if args.timestamp && checksums.directories.len() > 0 {
+        let res = update_timestamps_on_dirs(&local_target_path, remote_target_path.as_ref().to_str().unwrap(), &checksums.directories)
+            .await
+            .context("updating timestamps on directories");
+        if let Err(e) = res {
+            println!("Error: {}", unroll_anyhow_result(e.into()));
+        }
     }
 
     println!("Successfully synced");

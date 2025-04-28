@@ -1,3 +1,4 @@
+use crate::file::DirMeta;
 use super::{
     super::file::FileMeta,
     SerializableMessage
@@ -7,12 +8,13 @@ use anyhow::{Result, Context};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ChecksumsResponseMessage {
-    pub checksums: Vec<FileMeta>
+    pub directories: Vec<DirMeta>,
+    pub files: Vec<FileMeta>
 }
 
 impl ChecksumsResponseMessage {
-    pub fn new(checksums: Vec<FileMeta>) -> Self {
-        ChecksumsResponseMessage { checksums }
+    pub fn new(files: Vec<FileMeta>, directories: Vec<DirMeta>) -> Self {
+        ChecksumsResponseMessage { files, directories }
     }
 
     pub fn deserialize(msg: &[u8]) -> Result<Self> {
