@@ -1,9 +1,10 @@
 use clap::Parser;
 use helpers::naive_check;
 use quinn::Connection;
+use tokio::signal::{self, unix::{signal, SignalKind}};
 use std::{
     path::PathBuf,
-    sync::Arc,
+    sync::{atomic::{AtomicBool, Ordering}, Arc}
 };
 use anyhow::{Result, Context};
 use common::{
@@ -50,17 +51,45 @@ async fn main() -> Result<()> {
         return Ok(());
     }
     let connection = connection.unwrap();
+    let connection = Arc::new(connection);
 
     println!("Connected to server: {:?}", connection.remote_address());
 
-    let (mut send, mut recv) = connection
+    // gracefully close connection on a non graceful exit
+    let interrupted = Arc::new(AtomicBool::new(false));
+
+    let connection_clone = connection.clone();
+    let interrupted_clone = interrupted.clone();
+    tokio::task::spawn(async move {
+        let _ = signal::ctrl_c().await;
+        connection_clone.close(0u32.into(), b"Done");
+        interrupted_clone.store(true, Ordering::Relaxed);
+    });
+
+    let connection_clone = connection.clone();
+    let interrupted_clone = interrupted.clone();
+    tokio::task::spawn(async move {
+        let mut sigterm = signal(SignalKind::terminate()).expect("failed to listen to sigterm");
+        sigterm.recv().await;
+        connection_clone.close(0u32.into(), b"Done");
+        interrupted_clone.store(true, Ordering::Relaxed);
+    });
+
+    let stream = connection
         .open_bi()
         .await
-        .context("opening bi stream for sync request")?;
+        .context("opening bi stream for sync request");
+
+    if let Err(e) = stream {
+        if !interrupted.load(Ordering::Relaxed) { println!("{}", unroll_anyhow_result(e)); }
+        return Ok(());
+    }
+
+    let (mut send, mut recv) = stream.unwrap();
 
     let checksums = send_sync_request(&mut send, &mut recv, &cmd.remote_path, local_path.is_dir(), cmd.block_size).await.context("sending sync request message");
     if let Err(e) = checksums {
-        println!("{}", unroll_anyhow_result(e));
+        if !interrupted.load(Ordering::Relaxed) { println!("{}", unroll_anyhow_result(e)); }
         return Ok(());
     }
 
@@ -71,7 +100,7 @@ async fn main() -> Result<()> {
     let temp_entry = generate_temp_entry_point(&cmd.local_path, &cmd.remote_path, &checksums.files, &checksums.directories)
         .context("generating temp entry point");
     if let Err(e) = temp_entry {
-        println!("{}", unroll_anyhow_result(e));
+        if !interrupted.load(Ordering::Relaxed) { println!("{}", unroll_anyhow_result(e)); }
         return Ok(());
     }
     let temp_entry = temp_entry.unwrap();
@@ -80,7 +109,6 @@ async fn main() -> Result<()> {
     let remote_target_path = Arc::new(remote_path);
     let local_target_path = Arc::new(local_path);
     let args = Arc::new(cmd);
-    let connection = Arc::new(connection);
     let file_syncing_results: Vec<Result<bool>> = futures::stream::iter(checksums.files)
         .map(|checksum| { sync_file(checksum, entry_point_path.clone(), local_target_path.clone(), remote_target_path.clone(), connection.clone(), args.clone()) })
         .buffered(args.concurrent_streams)
@@ -89,7 +117,7 @@ async fn main() -> Result<()> {
 
     let err = file_syncing_results.into_iter().find(|res| res.is_err());
     if let Some(Err(e)) = err {
-        println!("Error: {}", unroll_anyhow_result(e));
+        if !interrupted.load(Ordering::Relaxed) { println!("{}", unroll_anyhow_result(e)); }
         return Ok(());
     }
 

@@ -1,6 +1,7 @@
 use std::{
     net::{IpAddr, SocketAddr},
-    path::Path, str::FromStr, sync::Arc
+    path::Path, str::FromStr,
+    sync::{atomic::{AtomicBool, Ordering}, Arc}
 };
 use crate::{
     handlers::{handle_block_request, handle_sync_request},
@@ -48,22 +49,34 @@ pub async fn run(port: u16) -> Result<()> {
 
 async fn handle_connection(connecting: quinn::Incoming) -> Result<()> {
     let connection = connecting.await?;
+
+    let stop_signal = Arc::new(AtomicBool::new(false));
+
+    let connection_for_monitoring = connection.clone();
+    let stop_signal_clone = stop_signal.clone();
+    tokio::spawn(async move {
+        let stop_signal = stop_signal_clone;
+        connection_for_monitoring.closed().await;
+        stop_signal.store(true, Ordering::Relaxed);
+    });
+
     println!("Connection established from: {}", connection.remote_address());
 
-    while let Ok((send, recv)) = connection.accept_bi().await { tokio::spawn(handle_new_stream(send, recv)); }
+    while let Ok((send, recv)) = connection.accept_bi().await { tokio::spawn(handle_new_stream(send, recv, stop_signal.clone())); }
 
     Ok(())
 }
 
-async fn handle_new_stream(send: quinn::SendStream, mut recv: RecvStream) -> Result<()> {
+async fn handle_new_stream(send: quinn::SendStream, mut recv: RecvStream, stop_signal: Arc<AtomicBool>) -> Result<()> {
     let mut header_buff = [0u8; HEADER_LEN];
+
     recv.read_exact(&mut header_buff)
         .await
         .context("reading header")?;
     let header = MessageHeader::deserialize(&header_buff)?;
 
     match header.msg_type {
-        MessageType::SyncRequest => handle_sync_request(send, recv, &header).await,
+        MessageType::SyncRequest => handle_sync_request(send, recv, &header, stop_signal.clone()).await,
         MessageType::BlockRequest => handle_block_request(send, recv, &header).await,
         _ => todo!("return error")
     }?;

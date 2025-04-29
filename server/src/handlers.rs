@@ -1,4 +1,7 @@
-use std::path::Path;
+use std::{
+    path::Path,
+    sync::{atomic::AtomicBool, Arc}
+};
 use anyhow::{Result, Context};
 use quinn::{RecvStream, SendStream};
 use common::{
@@ -10,7 +13,7 @@ use common::{
 use tokio::io::AsyncWriteExt;
 use crate::error_message;
 
-pub async fn handle_sync_request(mut tx: SendStream, mut rx: RecvStream, header: &MessageHeader) -> Result<()> {
+pub async fn handle_sync_request(mut tx: SendStream, mut rx: RecvStream, header: &MessageHeader, stop_signal: Arc<AtomicBool>) -> Result<()> {
     let mut msg_ser = vec![0u8; header.msg_len as usize];
     let reading_res = rx.read_exact(&mut msg_ser)
         .await
@@ -45,7 +48,7 @@ pub async fn handle_sync_request(mut tx: SendStream, mut rx: RecvStream, header:
     }
 
     let checksums = tokio::task::spawn_blocking(move || {
-        common::file::get_checksums(&sync_requst_msg.path, sync_requst_msg.block_size)
+        common::file::get_checksums(&sync_requst_msg.path, sync_requst_msg.block_size, stop_signal)
     }).await
     .context("running checksums iterator");
 
