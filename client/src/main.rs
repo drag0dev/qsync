@@ -23,8 +23,6 @@ mod helpers;
 use client::{send_block_request, send_sync_request};
 use command::Command;
 
-// TODO: close connection on early returns
-
 #[tokio::main]
 async fn main() -> Result<()> {
     let cmd = Command::parse();
@@ -82,6 +80,7 @@ async fn main() -> Result<()> {
 
     if let Err(e) = stream {
         if !interrupted.load(Ordering::Relaxed) { println!("{}", unroll_anyhow_result(e)); }
+        connection.close(0u32.into(), b"Done");
         return Ok(());
     }
 
@@ -90,17 +89,22 @@ async fn main() -> Result<()> {
     let checksums = send_sync_request(&mut send, &mut recv, &cmd.remote_path, local_path.is_dir(), cmd.block_size).await.context("sending sync request message");
     if let Err(e) = checksums {
         if !interrupted.load(Ordering::Relaxed) { println!("{}", unroll_anyhow_result(e)); }
+        connection.close(0u32.into(), b"Done");
         return Ok(());
     }
 
     let checksums = checksums.unwrap();
-    if checksums.is_none() { return Ok(()) }
+    if checksums.is_none() {
+        connection.close(0u32.into(), b"Done");
+        return Ok(());
+    }
     let checksums = checksums.unwrap();
 
     let temp_entry = generate_temp_entry_point(&cmd.local_path, &cmd.remote_path, &checksums.files, &checksums.directories)
         .context("generating temp entry point");
     if let Err(e) = temp_entry {
         if !interrupted.load(Ordering::Relaxed) { println!("{}", unroll_anyhow_result(e)); }
+        connection.close(0u32.into(), b"Done");
         return Ok(());
     }
     let temp_entry = temp_entry.unwrap();
@@ -118,6 +122,7 @@ async fn main() -> Result<()> {
     let err = file_syncing_results.into_iter().find(|res| res.is_err());
     if let Some(Err(e)) = err {
         if !interrupted.load(Ordering::Relaxed) { println!("{}", unroll_anyhow_result(e)); }
+        connection.close(0u32.into(), b"Done");
         return Ok(());
     }
 
