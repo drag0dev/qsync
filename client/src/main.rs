@@ -1,7 +1,10 @@
 use clap::Parser;
-use helpers::naive_check;
+use helpers::{clean_up_temp, naive_check};
 use quinn::Connection;
-use tokio::signal::{self, unix::{signal, SignalKind}};
+use tokio::{
+    signal::{self, unix::{signal, SignalKind}},
+    sync::Mutex
+};
 use std::{
     path::PathBuf,
     sync::{atomic::{AtomicBool, Ordering}, Arc}
@@ -53,24 +56,43 @@ async fn main() -> Result<()> {
 
     println!("Connected to server: {:?}", connection.remote_address());
 
+    // temp entry point
+    let temp_entry_point: Arc<Mutex<Option<PathBuf>>> = Arc::new(Mutex::new(None));
+
     // gracefully close connection on a non graceful exit
     let interrupted = Arc::new(AtomicBool::new(false));
 
     let connection_clone = connection.clone();
     let interrupted_clone = interrupted.clone();
+    let temp_entry_point_clone = temp_entry_point.clone();
     tokio::task::spawn(async move {
         let _ = signal::ctrl_c().await;
         connection_clone.close(0u32.into(), b"Done");
         interrupted_clone.store(true, Ordering::Relaxed);
+        {
+            let temp_entry_point = temp_entry_point_clone.lock().await;
+            if temp_entry_point.is_some() {
+                let res = clean_up_temp(temp_entry_point.as_ref().unwrap()).await;
+                if res.is_err() { println!("Error cleaning up temp"); }
+            }
+        }
     });
 
     let connection_clone = connection.clone();
     let interrupted_clone = interrupted.clone();
+    let temp_entry_point_clone = temp_entry_point.clone();
     tokio::task::spawn(async move {
         let mut sigterm = signal(SignalKind::terminate()).expect("failed to listen to sigterm");
         sigterm.recv().await;
         connection_clone.close(0u32.into(), b"Done");
         interrupted_clone.store(true, Ordering::Relaxed);
+        {
+            let temp_entry_point = temp_entry_point_clone.lock().await;
+            if temp_entry_point.is_some() {
+                let res = clean_up_temp(temp_entry_point.as_ref().unwrap()).await;
+                if res.is_err() { println!("Error cleaning up temp"); }
+            }
+        }
     });
 
     let stream = connection
@@ -108,6 +130,10 @@ async fn main() -> Result<()> {
         return Ok(());
     }
     let temp_entry = temp_entry.unwrap();
+    {
+        let mut ker = temp_entry_point.lock().await;
+        *ker = Some(temp_entry.clone());
+    }
 
     let entry_point_path = Arc::new(temp_entry);
     let remote_target_path = Arc::new(remote_path);

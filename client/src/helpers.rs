@@ -64,3 +64,12 @@ pub async fn naive_check(path: &PathBuf, remote_size: u64, remote_modified_times
 
     Ok(true)
 }
+
+pub async fn clean_up_temp(temp_entry: &PathBuf) -> Result<()> {
+    if temp_entry.is_dir() {
+        tokio::fs::remove_dir_all(temp_entry).await
+    } else {
+        tokio::fs::remove_file(temp_entry).await
+    }.context("deleting temp entry")?;
+    Ok(())
+}
