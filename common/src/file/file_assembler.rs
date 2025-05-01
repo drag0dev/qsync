@@ -1,5 +1,8 @@
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
-
+use std::{
+    fs::Permissions,
+    os::unix::fs::PermissionsExt,
+    time::{Duration, SystemTime, UNIX_EPOCH}
+};
 use anyhow::{Result, Context};
 use tokio::{
     fs::{File, OpenOptions},
@@ -38,6 +41,16 @@ impl FileAssembler {
             let nanos = sub_millies * 1_000_000;
             let timestamp = UNIX_EPOCH + Duration::new(secs, nanos);
             f.set_modified(SystemTime::from(timestamp)).context("setting modified timestamp")
+        }).await??;
+
+        Ok(())
+    }
+
+    pub async fn set_permissions(&mut self, permissions: u32) -> Result<()> {
+        let f = self.file.try_clone().await.context("cloning fd when setting timestamp")?;
+        let f = f.into_std().await;
+        tokio::task::spawn_blocking(move || {
+            f.set_permissions(Permissions::from_mode(permissions))
         }).await??;
 
         Ok(())

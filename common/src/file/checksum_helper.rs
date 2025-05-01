@@ -1,7 +1,10 @@
 use std::{
-    collections::VecDeque,
+    collections::VecDeque, os::unix::fs::MetadataExt,
     path::{Path, PathBuf},
-    sync::{atomic::{AtomicBool, Ordering}, Arc},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc
+    },
     time::SystemTime
 };
 use anyhow::{anyhow, Context, Result};
@@ -19,7 +22,7 @@ pub fn get_checksums(path_str: &str, block_size: usize, stop_signal: Arc<AtomicB
     if path.is_file() {
         let checksums = get_file_checkums(&path_str, block_size, stop_signal).context("getting file checksums")?;
         let meta = get_file_meta(&path.into())?;
-        let meta = FileMeta::new(path_str.to_owned(), checksums, meta.0, meta.1);
+        let meta = FileMeta::new(path_str.to_owned(), checksums, meta.0, meta.1, meta.2);
         file_meta.push(meta);
     }
     else if path.is_symlink() {}
@@ -47,7 +50,7 @@ pub fn get_checksums(path_str: &str, block_size: usize, stop_signal: Arc<AtomicB
                     if entry.is_file() {
                         let checksums = get_file_checkums(&entry_item_path, block_size, stop_signal.clone()).context("getting file checksums")?;
                         let meta = get_file_meta(&entry)?;
-                        let meta = FileMeta::new(entry_item_path, checksums, meta.0, meta.1);
+                        let meta = FileMeta::new(entry_item_path, checksums, meta.0, meta.1, meta.2);
                         file_meta.push(meta);
                     } else if entry.is_symlink() {}
                     else { dirs.push_back(entry); }
@@ -64,7 +67,7 @@ pub fn get_checksums(path_str: &str, block_size: usize, stop_signal: Arc<AtomicB
      Ok((file_meta, dir_meta))
 }
 
-fn get_file_meta(file: &PathBuf) -> Result<(u128, u64)> {
+fn get_file_meta(file: &PathBuf) -> Result<(u128, u64, Option<u32>)> {
     let meta = file.metadata().context("getting file metadata")?;
 
     let modified_timestamp = meta
@@ -74,7 +77,15 @@ fn get_file_meta(file: &PathBuf) -> Result<(u128, u64)> {
         .context("calculating timestamp")?
         .as_millis();
 
-    Ok((modified_timestamp, meta.len()))
+    let permissions = {
+        #[cfg(unix)]
+        { Some(meta.mode()) }
+
+        #[cfg(windows)]
+        { None }
+    };
+
+    Ok((modified_timestamp, meta.len(), permissions))
 }
 
 fn get_file_checkums(path: &str, block_size: usize, stop_signal: Arc<AtomicBool>) -> Result<Vec<String>> {

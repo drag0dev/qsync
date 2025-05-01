@@ -265,5 +265,10 @@ async fn sync_file(
 
     if args.timestamp { file_assembler.set_modified_timestamp(file_meta.modified_timestamp).await?; }
 
+    #[cfg(unix)]
+    {
+        if args.permissions && file_meta.permissions.is_some() { file_assembler.set_permissions(file_meta.permissions.unwrap()).await?; }
+    }
+
     Ok(true)
 }

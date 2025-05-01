@@ -21,6 +21,9 @@ pub struct Command {
     #[arg(short, long, default_value_t = false)]
     pub timestamp: bool,
 
+    #[arg(long, default_value_t = false)]
+    pub permissions: bool,
+
     #[arg(short, long, default_value_t = false)]
     pub naive: bool,
 
