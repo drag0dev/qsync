@@ -3,9 +3,9 @@ use quinn::crypto::rustls::QuicClientConfig;
 use tokio::fs::File;
 use std::time::SystemTime;
 use std::{path::PathBuf, sync::Arc};
-use std::net::SocketAddr;
+use std::net::{SocketAddr, ToSocketAddrs};
 use quinn::{Connection, Endpoint};
-use anyhow::{Result, Context};
+use anyhow::{anyhow, Context, Result};
 
 pub async fn get_connection(server_address: &str, port: u16) -> Result<Connection> {
     let client_config = configure_client()
@@ -15,10 +15,17 @@ pub async fn get_connection(server_address: &str, port: u16) -> Result<Connectio
     client.set_default_client_config(client_config);
 
     let server_address = format!("{server_address}:{port}");
-    let server_addr = server_address.parse::<SocketAddr>()
-        .context("parsing server address")?;
+    let server_address = &server_address.to_socket_addrs()
+        .context("parsing server address")?
+        .into_iter()
+        .find(|addr| { if let SocketAddr::V4(_) = addr { true } else { false } });
 
-    let connection = client.connect(server_addr, "localhost")
+    if server_address.is_none() {
+        return Err(anyhow!("cannot resolve provided server address"));
+    }
+    let server_address = server_address.unwrap();
+
+    let connection = client.connect(server_address, "localhost")
         .context("establishing connecting to server")?
         .await
         .context("connecting to server")?;
