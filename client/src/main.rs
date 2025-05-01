@@ -122,8 +122,18 @@ async fn main() -> Result<()> {
     }
     let checksums = checksums.unwrap();
 
-    let temp_entry = generate_temp_entry_point(&cmd.local_path, &cmd.remote_path, &checksums.files, &checksums.directories)
+    let local_path_clone = cmd.local_path.clone();
+    let remote_path_clone = cmd.remote_path.clone();
+    let files_clone = checksums.files.clone();
+    let dirs_clone = checksums.directories.clone();
+
+    let temp_entry = tokio::task::spawn_blocking(move || {
+        generate_temp_entry_point(&local_path_clone, &remote_path_clone, &files_clone, &dirs_clone)
+    })
+        .await
+        .context("running generate temp entry point")?
         .context("generating temp entry point");
+
     if let Err(e) = temp_entry {
         if !interrupted.load(Ordering::Relaxed) { println!("{}", unroll_anyhow_result(e)); }
         connection.close(0u32.into(), b"Done");
@@ -154,7 +164,7 @@ async fn main() -> Result<()> {
 
     connection.close(0u32.into(), b"Done");
 
-    // remove the old target, and rename the newly synced to the old target
+    // remove the old target, rename the newly synced to the old target
 
     let res = if local_target_path.is_dir() {
         tokio::fs::remove_dir_all(local_target_path.as_ref()).await
