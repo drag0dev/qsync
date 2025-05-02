@@ -83,7 +83,14 @@ async fn main() -> Result<()> {
     let interrupted_clone = interrupted.clone();
     let temp_entry_point_clone = temp_entry_point.clone();
     tokio::task::spawn(async move {
-        let mut sigterm = signal(SignalKind::terminate()).expect("failed to listen to sigterm");
+        let sigterm = signal(SignalKind::terminate())
+            .context("failed to listen to sigterm");
+        if let Err(e) = sigterm {
+            println!("{}", unroll_anyhow_result(e));
+            return;
+        }
+        let mut sigterm = sigterm.unwrap();
+
         sigterm.recv().await;
         connection_clone.close(0u32.into(), b"Done");
         interrupted_clone.store(true, Ordering::Relaxed);

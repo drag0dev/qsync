@@ -27,12 +27,11 @@ use rustls_pki_types::{
 #[tokio::main]
 pub async fn run(port: u16) -> Result<()> {
     rustls::crypto::aws_lc_rs::default_provider().install_default().expect("installing aws_ls_rs");
-    generate_dummy_crt().expect("");
+    generate_dummy_crt().context("creating dummy certs")?;
     let addr = SocketAddr::new(IpAddr::from_str("127.0.0.1").unwrap(), port);
     let server_config = get_server_config().expect("");
     let server = Endpoint::server(server_config, addr)
-        .context("starting server")
-        .expect("");
+        .context("starting server")?;
 
     println!("Running on port {port}");
     while let Some(conn) = server.accept().await {
@@ -70,10 +69,20 @@ async fn handle_connection(connecting: quinn::Incoming) -> Result<()> {
 async fn handle_new_stream(send: quinn::SendStream, mut recv: RecvStream, stop_signal: Arc<AtomicBool>) -> Result<()> {
     let mut header_buff = [0u8; HEADER_LEN];
 
-    recv.read_exact(&mut header_buff)
+    let res = recv.read_exact(&mut header_buff)
         .await
-        .context("reading header")?;
-    let header = MessageHeader::deserialize(&header_buff)?;
+        .context("reading header");
+    if let Err(e) = res {
+        println!("Internal error: {}", unroll_anyhow_result(e));
+        return Ok(());
+    }
+
+    let header = MessageHeader::deserialize(&header_buff);
+    if let Err(e) = header {
+        println!("Internal error: {}", unroll_anyhow_result(e));
+        return Ok(());
+    }
+    let header = header.unwrap();
 
     let e = match header.msg_type {
         MessageType::SyncRequest => handle_sync_request(send, recv, &header, stop_signal.clone()).await,
