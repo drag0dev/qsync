@@ -113,6 +113,7 @@ async fn main() -> Result<()> {
     else if local_path.is_dir() { SyncTargetType::Directory }
     else { SyncTargetType::File };
 
+    println!("Sending sync request");
     let checksums = send_sync_request(&mut send, &mut recv, &cmd.remote_path, target_type, cmd.block_size)
         .await
         .context("sending sync request message");
@@ -134,6 +135,7 @@ async fn main() -> Result<()> {
     let files_clone = checksums.files.clone();
     let dirs_clone = checksums.directories.clone();
 
+    println!("Generating placeholder files");
     let temp_entry = tokio::task::spawn_blocking(move || {
         generate_temp_entry_point(&local_path_clone, &remote_path_clone, &files_clone, &dirs_clone)
     })
@@ -152,6 +154,7 @@ async fn main() -> Result<()> {
         *ker = Some(temp_entry.clone());
     }
 
+    println!("Syncing files");
     let entry_point_path = Arc::new(temp_entry);
     let remote_target_path = Arc::new(remote_path);
     let local_target_path = Arc::new(local_path);
