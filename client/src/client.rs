@@ -1,14 +1,14 @@
 use common::message::{
-    message_serialize_and_frame, BlockDataMessage,
-    BlockRequestMessage, ChecksumsResponseMessage, ErrorMessage,
-    MessageHeader, MessageType, SyncRequestMessage, HEADER_LEN
+    message_serialize_and_frame, BlockDataMessage, BlockRequestMessage,
+    ChecksumsResponseMessage, ErrorMessage, MessageHeader, MessageType,
+    SyncRequestMessage, SyncTargetType, HEADER_LEN
 };
 use anyhow::{anyhow, Context, Result};
 use quinn::{RecvStream, SendStream};
 use tokio::io::AsyncWriteExt;
 
-pub async fn send_sync_request(send: &mut SendStream, recv: &mut RecvStream, path: &str, is_dir: bool, block_size: usize) -> Result<Option<ChecksumsResponseMessage>> {
-    let msg = SyncRequestMessage::new(path.into(), is_dir, block_size);
+pub async fn send_sync_request(send: &mut SendStream, recv: &mut RecvStream, path: &str, file_type: SyncTargetType, block_size: usize) -> Result<Option<ChecksumsResponseMessage>> {
+    let msg = SyncRequestMessage::new(path.into(), file_type, block_size);
     let msg_ser = message_serialize_and_frame(MessageType::SyncRequest, &msg, false).await?;
 
     send.write_all(&msg_ser)

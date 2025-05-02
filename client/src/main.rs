@@ -2,11 +2,12 @@ use clap::Parser;
 use helpers::{clean_up_temp, naive_check};
 use quinn::Connection;
 use tokio::{
+    fs::{remove_file, symlink},
     signal::{self, unix::{signal, SignalKind}},
     sync::Mutex
 };
 use std::{
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{atomic::{AtomicBool, Ordering}, Arc}
 };
 use anyhow::{Result, Context};
@@ -15,7 +16,7 @@ use common::{
         generate_temp_entry_point, update_timestamps_on_dirs, AsyncFileChecksumIter,
         FileAssembler, FileMeta
     },
-    helpers::unroll_anyhow_result
+    helpers::unroll_anyhow_result, message::SyncTargetType
 };
 use futures::StreamExt;
 
@@ -108,14 +109,20 @@ async fn main() -> Result<()> {
 
     let (mut send, mut recv) = stream.unwrap();
 
-    let checksums = send_sync_request(&mut send, &mut recv, &cmd.remote_path, local_path.is_dir(), cmd.block_size).await.context("sending sync request message");
+    let target_type = if local_path.is_symlink() { SyncTargetType::Symlink }
+    else if local_path.is_dir() { SyncTargetType::Directory }
+    else { SyncTargetType::File };
+
+    let checksums = send_sync_request(&mut send, &mut recv, &cmd.remote_path, target_type, cmd.block_size)
+        .await
+        .context("sending sync request message");
     if let Err(e) = checksums {
         if !interrupted.load(Ordering::Relaxed) { println!("{}", unroll_anyhow_result(e)); }
         connection.close(0u32.into(), b"Done");
         return Ok(());
     }
-
     let checksums = checksums.unwrap();
+
     if checksums.is_none() {
         connection.close(0u32.into(), b"Done");
         return Ok(());
@@ -192,6 +199,7 @@ async fn main() -> Result<()> {
             .context("updating timestamps on directories");
         if let Err(e) = res {
             println!("Error: {}", unroll_anyhow_result(e.into()));
+            return Ok(());
         }
     }
 
@@ -217,6 +225,18 @@ async fn sync_file(
     if local_file.len() > 0 {
         local_file_path.push(local_file);
         existing_file_path.push(local_file);
+    }
+
+    if file_meta.is_symlink {
+        // temp dir generates regular files in place of symlinks, which has to be first deleted
+        remove_file(local_file_path.as_path()).await.context("deleting temp file that is to be replace with symlink")?;
+
+        let target = file_meta.symlink_target.unwrap();
+        let target = Path::new(&target);
+        symlink(target, local_file_path)
+            .await
+            .context("creating symlink")?;
+        return Ok(true);
     }
 
     let local_file_checksums = AsyncFileChecksumIter::new(existing_file_path.to_str().unwrap(), args.block_size).await?;

@@ -75,11 +75,14 @@ async fn handle_new_stream(send: quinn::SendStream, mut recv: RecvStream, stop_s
         .context("reading header")?;
     let header = MessageHeader::deserialize(&header_buff)?;
 
-    match header.msg_type {
+    let e = match header.msg_type {
         MessageType::SyncRequest => handle_sync_request(send, recv, &header, stop_signal.clone()).await,
         MessageType::BlockRequest => handle_block_request(send, recv, &header).await,
-        _ => todo!("return error")
-    }?;
+        _ => todo!("return error"),
+    };
+    if let Err(e) = e {
+        println!("Internal error: {}", unroll_anyhow_result(e));
+    }
     Ok(())
 }
 

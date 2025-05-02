@@ -8,7 +8,7 @@ use common::{
     file::read_block,
     message::{
         message_serialize_and_frame, BlockDataMessage, BlockRequestMessage,
-        ChecksumsResponseMessage, ErrorMessage, MessageHeader, MessageType, SyncRequestMessage
+        ChecksumsResponseMessage, ErrorMessage, MessageHeader, MessageType, SyncRequestMessage, SyncTargetType
 }};
 use tokio::io::AsyncWriteExt;
 use crate::error_message;
@@ -31,13 +31,18 @@ pub async fn handle_sync_request(mut tx: SendStream, mut rx: RecvStream, header:
     }
     let sync_requst_msg = sync_requst_msg.unwrap();
 
-    // check if client is requesting a file-file or dir-dir sync
-    let res = tokio::fs::metadata(&sync_requst_msg.path)
+    // check if client is requesting a file-file/dir-dir/symlink-symlink sync
+    let meta = tokio::fs::symlink_metadata(&sync_requst_msg.path)
         .await
         .context("getting path metadata")?;
 
-    if res.is_dir() != sync_requst_msg.is_dir {
-        error_message!(tx, "File and a directory cannot be synced");
+    let is_target_type_matching = match sync_requst_msg.file_type {
+        SyncTargetType::Symlink => meta.is_symlink(),
+        SyncTargetType::File => meta.is_file(),
+        SyncTargetType::Directory => meta.is_dir(),
+    };
+    if !is_target_type_matching {
+        error_message!(tx, "Remote and local target different types (dir/file/symlink)");
         return Ok(());
     }
 

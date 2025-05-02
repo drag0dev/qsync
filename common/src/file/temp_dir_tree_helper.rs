@@ -24,7 +24,7 @@ pub fn generate_temp_entry_point(local_target_path: &str, remote_target_path: &s
     if child.is_none() { return Err(anyhow!("local target path does not have a child")); }
     let child = child.unwrap();
 
-    if path.is_file() {
+    if path.is_file() || path.is_symlink() {
         let temp_file_path = generate_temp_file(child, parent, 6)?;
         Ok(temp_file_path)
     } else {

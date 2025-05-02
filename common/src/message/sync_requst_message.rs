@@ -3,15 +3,22 @@ use anyhow::{Result, Context};
 use super::SerializableMessage;
 
 #[derive(Debug, Serialize, Deserialize)]
+pub enum SyncTargetType {
+    File,
+    Directory,
+    Symlink
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct SyncRequestMessage {
     pub path: String,
-    pub is_dir: bool,
+    pub file_type: SyncTargetType,
     pub block_size: usize,
 }
 
 impl SyncRequestMessage {
-    pub fn new(path: String, is_dir: bool, block_size: usize) -> Self {
-        Self { path, is_dir, block_size }
+    pub fn new(path: String, file_type: SyncTargetType, block_size: usize) -> Self {
+        Self { path, file_type, block_size }
     }
 
     pub fn deserialize(msg: &[u8]) -> Result<Self> {

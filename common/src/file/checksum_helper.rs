@@ -1,11 +1,10 @@
 use std::{
-    collections::VecDeque, os::unix::fs::MetadataExt,
+    collections::VecDeque, fs::read_link, os::unix::fs::MetadataExt,
     path::{Path, PathBuf},
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc
-    },
-    time::SystemTime
+    }, time::SystemTime
 };
 use anyhow::{anyhow, Context, Result};
 use super::{
@@ -16,16 +15,23 @@ pub fn get_checksums(path_str: &str, block_size: usize, stop_signal: Arc<AtomicB
     let path = Path::new(path_str);
 
     let mut dir_meta = Vec::new();
-
-    // TODO: handle symlinks first, because both dir and file can be a symlink
     let mut file_meta = Vec::new();
-    if path.is_file() {
-        let checksums = get_file_checkums(&path_str, block_size, stop_signal).context("getting file checksums")?;
-        let meta = get_file_meta(&path.into())?;
-        let meta = FileMeta::new(path_str.to_owned(), checksums, meta.0, meta.1, meta.2);
+
+    if path.is_symlink() {
+        let symlink_target = read_link(&path)
+            .context("getting symlink target")?;
+        let symlink_target = symlink_target.to_str();
+        if symlink_target.is_none() { return Err(anyhow!("Symlink path invalid")); }
+        let symlink_target = symlink_target.unwrap().to_owned();
+        let meta = FileMeta::new_symlink(path_str.to_owned(), symlink_target);
         file_meta.push(meta);
     }
-    else if path.is_symlink() {}
+    else if path.is_file() {
+        let checksums = get_file_checkums(&path_str, block_size, stop_signal).context("getting file checksums")?;
+        let meta = get_file_meta(&path.into())?;
+        let meta = FileMeta::new_file(path_str.to_owned(), checksums, meta.0, meta.1, meta.2);
+        file_meta.push(meta);
+    }
     else {
         let mut dirs = VecDeque::new();
         dirs.push_back(path.to_owned());
@@ -47,13 +53,21 @@ pub fn get_checksums(path_str: &str, block_size: usize, stop_signal: Arc<AtomicB
                     if entry_item_path.is_none() { return Err(anyhow!("Cannot get directory item path")); }
                     let entry_item_path = entry_item_path.unwrap().to_owned();
 
-                    if entry.is_file() {
+                    if entry.is_symlink() {
+                        let symlink_target = read_link(&entry_item_path)
+                            .context("getting symlink target")?;
+                        let symlink_target = symlink_target.to_str();
+                        if symlink_target.is_none() { return Err(anyhow!("Symlink path invalid")); }
+                        let symlink_target = symlink_target.unwrap().to_owned();
+                        let meta = FileMeta::new_symlink(entry_item_path, symlink_target);
+                        file_meta.push(meta);
+                    }
+                    else if entry.is_file() {
                         let checksums = get_file_checkums(&entry_item_path, block_size, stop_signal.clone()).context("getting file checksums")?;
                         let meta = get_file_meta(&entry)?;
-                        let meta = FileMeta::new(entry_item_path, checksums, meta.0, meta.1, meta.2);
+                        let meta = FileMeta::new_file(entry_item_path, checksums, meta.0, meta.1, meta.2);
                         file_meta.push(meta);
-                    } else if entry.is_symlink() {}
-                    else { dirs.push_back(entry); }
+                    } else { dirs.push_back(entry); }
                 }
 
                 let dir_timestamp = get_file_meta(&dir).context("getting dir meta")?.0;
