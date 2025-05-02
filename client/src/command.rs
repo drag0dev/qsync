@@ -1,7 +1,7 @@
 use clap::Parser;
 
 #[derive(Parser)]
-#[command(name = "fastsync")]
+#[command(name = "qsync")]
 pub struct Command {
     #[arg(short, long)]
     pub server_address: String,
