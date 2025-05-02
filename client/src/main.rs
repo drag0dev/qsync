@@ -31,13 +31,13 @@ use command::Command;
 async fn main() -> Result<()> {
     let cmd = Command::parse();
 
-    let local_path = PathBuf::from(&cmd.local_path);
+    let local_path = PathBuf::from(&cmd.local_target);
     if !local_path.exists() {
         println!("Error: local path is not valid");
         return Ok(());
     }
 
-    let remote_path = PathBuf::from(&cmd.remote_path);
+    let remote_path = PathBuf::from(&cmd.remote_target);
     if !remote_path.is_absolute() {
         println!("Error: remote path has to be absolute");
         return Ok(());
@@ -114,7 +114,7 @@ async fn main() -> Result<()> {
     else { SyncTargetType::File };
 
     println!("Sending sync request");
-    let checksums = send_sync_request(&mut send, &mut recv, &cmd.remote_path, target_type, cmd.block_size)
+    let checksums = send_sync_request(&mut send, &mut recv, &cmd.remote_target, target_type, cmd.block_size)
         .await
         .context("sending sync request message");
     if let Err(e) = checksums {
@@ -130,8 +130,8 @@ async fn main() -> Result<()> {
     }
     let checksums = checksums.unwrap();
 
-    let local_path_clone = cmd.local_path.clone();
-    let remote_path_clone = cmd.remote_path.clone();
+    let local_path_clone = cmd.local_target.clone();
+    let remote_path_clone = cmd.remote_target.clone();
     let files_clone = checksums.files.clone();
     let dirs_clone = checksums.directories.clone();
 
