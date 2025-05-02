@@ -216,6 +216,7 @@ async fn sync_file(
     remote_target_path: Arc<PathBuf>, connection: Arc<Connection>, args: Arc<Command>
 ) -> Result<bool> {
     let local_file = &file_meta.path;
+    let mut naive_match = false;
 
     // both unwraps are safe, because both have been done previously in generate_temp_entry_point
     let local_file = local_file.strip_prefix(remote_target_path.to_str().unwrap()).unwrap();
@@ -239,6 +240,8 @@ async fn sync_file(
         symlink(target, local_file_path)
             .await
             .context("creating symlink")?;
+
+        if args.verbose { println!("{} - synced", file_meta.path); }
         return Ok(true);
     }
 
@@ -256,6 +259,10 @@ async fn sync_file(
             // avoiding asking server to transmit the block if we have the block already or if we
             // are only doing naive check
             if (args.naive && naive_check_res) || (local_block_checksum.is_some() && &local_block_checksum.unwrap() == remote_block_checksum) {
+                if args.naive && naive_check_res && args.verbose {
+                    println!("{} - naive match", file_meta.path);
+                    naive_match = true;
+                }
                 let block = local_file_checksums.get_current_block();
                 file_assembler.write_next_block(&block).await?;
             } else {
@@ -303,5 +310,6 @@ async fn sync_file(
         if args.permissions && file_meta.permissions.is_some() { file_assembler.set_permissions(file_meta.permissions.unwrap()).await?; }
     }
 
+    if args.verbose && !naive_match { println!("{} - synced", file_meta.path); }
     Ok(true)
 }

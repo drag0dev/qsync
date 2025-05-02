@@ -29,4 +29,7 @@ pub struct Command {
 
     #[arg(short, long, default_value_t = 16384)]
     pub block_size: usize,
+
+    #[arg(short, long, default_value_t = false)]
+    pub verbose: bool,
 }
