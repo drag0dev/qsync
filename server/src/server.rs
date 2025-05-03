@@ -1,7 +1,7 @@
 use std::{
     net::{IpAddr, SocketAddr},
     path::Path, str::FromStr,
-    sync::{atomic::{AtomicBool, Ordering}, Arc}
+    sync::{atomic::{AtomicBool, Ordering}, Arc}, time::Duration
 };
 use crate::{
     handlers::{handle_block_request, handle_sync_request},
@@ -13,8 +13,8 @@ use common::{
     helpers::unroll_anyhow_result,
 };
 use quinn::{
-    crypto::rustls::QuicServerConfig,
-    Endpoint, RecvStream, ServerConfig
+    crypto::rustls::QuicServerConfig, Endpoint, IdleTimeout,
+    RecvStream, ServerConfig, TransportConfig
 };
 use rustls_pki_types::{
     pem::PemObject,
@@ -110,7 +110,15 @@ fn get_server_config() -> Result<quinn::ServerConfig> {
     let crypto = QuicServerConfig::try_from(crypto)
         .context("converting config into quic config")?;
 
-    let server_config = ServerConfig::with_crypto(Arc::new(crypto));
+    let mut server_config = ServerConfig::with_crypto(Arc::new(crypto));
+
+    let mut transport_config = TransportConfig::default();
+    let timeout: IdleTimeout = Duration::from_secs(120)
+        .try_into()
+        .context("creating idle timeout")?;
+    transport_config.max_idle_timeout(Some(timeout));
+
+    server_config.transport_config(Arc::new(transport_config));
 
     Ok(server_config)
 }

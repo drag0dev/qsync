@@ -1,10 +1,10 @@
 use crate::skip_cert::SkipServerVerification;
 use quinn::crypto::rustls::QuicClientConfig;
 use tokio::fs::File;
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 use std::{path::PathBuf, sync::Arc};
 use std::net::{SocketAddr, ToSocketAddrs};
-use quinn::{Connection, Endpoint};
+use quinn::{Connection, Endpoint, IdleTimeout, TransportConfig};
 use anyhow::{anyhow, Context, Result};
 
 pub async fn get_connection(server_address: &str, port: u16) -> Result<Connection> {
@@ -42,7 +42,15 @@ pub fn configure_client() -> Result<quinn::ClientConfig> {
     let crypto = QuicClientConfig::try_from(crypto)
         .context("creating quic config")?;
 
-    let client_config = quinn::ClientConfig::new(Arc::new(crypto));
+    let mut client_config = quinn::ClientConfig::new(Arc::new(crypto));
+
+    let mut transport_config = TransportConfig::default();
+    let timeout: IdleTimeout = Duration::from_secs(120)
+        .try_into()
+        .context("creating idle timeout")?;
+    transport_config.max_idle_timeout(Some(timeout));
+
+    client_config.transport_config(Arc::new(transport_config));
 
     Ok(client_config)
 }
