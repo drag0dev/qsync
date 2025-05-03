@@ -1,11 +1,11 @@
 use std::{
     net::{IpAddr, SocketAddr},
-    path::Path, str::FromStr,
+    path::PathBuf, str::FromStr,
     sync::{atomic::{AtomicBool, Ordering}, Arc}, time::Duration
 };
 use crate::{
     handlers::{handle_block_request, handle_sync_request},
-    helpers::{generate_dummy_crt, CERT_PATH, KEY_PATH}
+    helpers::generate_dummy_crt
 };
 use anyhow::{Context, Result};
 use common::{
@@ -22,14 +22,15 @@ use rustls_pki_types::{
     PrivatePkcs8KeyDer
 };
 
-// TODO: inform client on internal server when possible
-
 #[tokio::main]
 pub async fn run(port: u16) -> Result<()> {
     rustls::crypto::aws_lc_rs::default_provider().install_default().expect("installing aws_ls_rs");
-    generate_dummy_crt().context("creating dummy certs")?;
+    let (cert_path, key_path) = generate_dummy_crt()
+        .await
+        .context("creating dummy certs")?;
+
     let addr = SocketAddr::new(IpAddr::from_str("127.0.0.1").unwrap(), port);
-    let server_config = get_server_config().expect("");
+    let server_config = get_server_config(cert_path, key_path).expect("");
     let server = Endpoint::server(server_config, addr)
         .context("starting server")?;
 
@@ -95,11 +96,11 @@ async fn handle_new_stream(send: quinn::SendStream, mut recv: RecvStream, stop_s
     Ok(())
 }
 
-fn get_server_config() -> Result<quinn::ServerConfig> {
-    let cert_chain = CertificateDer::from_pem_file(Path::new(CERT_PATH))
+fn get_server_config(cert_path: PathBuf, key_path: PathBuf) -> Result<quinn::ServerConfig> {
+    let cert_chain = CertificateDer::from_pem_file(cert_path)
         .context("decoding cert")?;
 
-    let keys = PrivatePkcs8KeyDer::from_pem_file(Path::new(KEY_PATH))
+    let keys = PrivatePkcs8KeyDer::from_pem_file(key_path)
         .context("decoding private key")?;
 
     let crypto = rustls::ServerConfig::builder()

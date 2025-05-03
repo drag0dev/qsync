@@ -1,24 +1,41 @@
-use std::path::Path;
+use std::path::PathBuf;
 
-use anyhow::{Result, Context};
+use anyhow::{anyhow, Context, Result};
+use directories_next::ProjectDirs;
 use rcgen::{generate_simple_self_signed, CertifiedKey};
+use tokio::fs;
 
-pub static CERT_PATH: &str = "./dummy_cert/temp_cert.pem";
-pub static KEY_PATH: &str = "./dummy_cert/temp_key.pem";
-
-pub fn generate_dummy_crt() -> Result<()> {
+pub async fn generate_dummy_crt() -> Result<(PathBuf, PathBuf)> {
     let CertifiedKey { cert, key_pair } = generate_simple_self_signed(vec!["localhost".into()])
         .context("generating self signed cert")?;
 
-    let cert_path = Path::new(CERT_PATH);
-    let key_path = Path::new(KEY_PATH);
+    let config_dir = ProjectDirs::from("", "", "qsync");
+    if config_dir.is_none() { return Err(anyhow!("Creating config directory for qsync")); }
+    let config_dir = config_dir.unwrap();
+    let config_dir = config_dir.config_dir().to_path_buf();
 
-    std::fs::write(&cert_path, cert.pem())
-        .context("writing cert")?;
-    std::fs::write(&key_path, key_pair.serialize_pem())
-        .context("writing keys")?;
+    if !config_dir.exists() {
+        fs::create_dir_all(&config_dir)
+            .await
+            .context("creating config dir for qsync")?;
+    }
 
-    Ok(())
+    let mut cert_path = config_dir.clone();
+    cert_path.push("dummy_cert.pem");
+
+    let mut key_path = config_dir;
+    key_path.push("dummy_key.pem");
+
+    if !cert_path.exists() || !key_path.exists() {
+        fs::write(&cert_path, cert.pem())
+            .await
+            .context("writing cert")?;
+
+        fs::write(&key_path, key_pair.serialize_pem())
+            .await
+            .context("writing keys")?;
+    }
+    Ok((cert_path, key_path))
 }
 
 #[macro_export]

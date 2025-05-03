@@ -12,3 +12,4 @@ rustls = { version = "0.23.25", features = ["aws-lc-rs"] }
 rustls-pki-types = "1.11.0"
 tokio = { version = "1.44.1", features = ["macros", "rt", "rt-multi-thread"] }
 common = { path = "../common" }
+directories-next = "2.0.0"
