@@ -21,7 +21,7 @@ pub struct Command {
     #[arg(short, long, default_value_t = false, help = "Preserve timestamps from the remote target")]
     pub timestamp: bool,
 
-    #[arg(long, default_value_t = false, help = "Preserve premissions from the remote target")]
+    #[arg(long, default_value_t = false, help = "Preserve permissions from the remote target")]
     pub permissions: bool,
 
     #[arg(short, long, default_value_t = false, help = "Skip syncing any file or directory that has the same modified timestamp and size as the remote")]
